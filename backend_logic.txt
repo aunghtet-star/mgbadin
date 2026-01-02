@@ -1,0 +1,78 @@
+
+--- 3D Lottery Banker Management System: Backend Architectures ---
+
+1. DATABASE SCHEMA (PostgreSQL)
+
+-- User Management
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    role VARCHAR(20) CHECK (role IN ('ADMIN', 'COLLECTOR')) NOT NULL,
+    balance DECIMAL(15, 2) DEFAULT 0.00,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Game Cycles
+CREATE TABLE game_phases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(20) NOT NULL, -- e.g. "Feb-01"
+    active BOOLEAN DEFAULT FALSE,
+    start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    end_date TIMESTAMP WITH TIME ZONE,
+    global_limit DECIMAL(15, 2) DEFAULT 50000.00
+);
+
+-- Number Specific Limits (Overwrites global)
+CREATE TABLE number_limits (
+    phase_id UUID REFERENCES game_phases(id),
+    number CHAR(3) NOT NULL,
+    max_amount DECIMAL(15, 2) NOT NULL,
+    PRIMARY KEY (phase_id, number)
+);
+
+-- Betting Ledger
+CREATE TABLE bets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    phase_id UUID REFERENCES game_phases(id),
+    number CHAR(3) NOT NULL,
+    amount DECIMAL(15, 2) NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Finalized Ledger for History
+CREATE TABLE settlement_ledger (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phase_id UUID UNIQUE REFERENCES game_phases(id),
+    total_in DECIMAL(15, 2),
+    total_out DECIMAL(15, 2),
+    net_profit DECIMAL(15, 2),
+    settled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RISK QUERY: Total liability per number
+SELECT 
+    number, 
+    SUM(amount) as total_bet,
+    (SUM(amount) * 80) as potential_payout -- Assuming 80x multiplier
+FROM bets
+WHERE phase_id = 'ACTIVE_PHASE_ID'
+GROUP BY number
+ORDER BY total_bet DESC;
+
+
+2. SECURITY STRATEGY
+
+a) Double-Betting Prevention:
+   - Use Database Transactions (ACID). Wrap the parsing and bet insertion in a single 'BEGIN ... COMMIT' block.
+   - Implement Idempotency Keys on the frontend for bulk submissions to prevent duplicate POST requests on laggy networks.
+
+b) Balance Integrity:
+   - Row-level locking: When a collector places a bet, use `SELECT balance FROM users WHERE id = ? FOR UPDATE` to lock the user record until the transaction completes.
+   - Check constraints: Add `CHECK (balance >= 0)` to the users table to ensure overdrafts never occur at the DB level.
+
+c) Real-time Updates:
+   - Use Socket.io with Redis adapter. When a bet is inserted, the backend emits a 'risk_update' event to the Admin namespace with the updated aggregate for that specific number.
+
+d) Input Validation:
+   - Always re-validate regex patterns on the backend. Never trust frontend-parsed data for financial transactions.

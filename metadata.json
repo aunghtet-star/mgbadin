@@ -1,0 +1,8 @@
+{
+  "name": "3D Lottery Banker Management System",
+  "description": "A high-performance fintech platform for 3D lottery management, featuring OCR scanning, voice entry, and real-time risk dashboards with Gemini-powered risk analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
