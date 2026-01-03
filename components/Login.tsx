@@ -15,12 +15,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulated API call (e.g., fetch('/api/login') with JWT/Bcrypt logic)
     setTimeout(() => {
       const selectedRole = roleOverride || (username.toLowerCase() === 'admin' ? 'ADMIN' : 'COLLECTOR');
       const mockUser: User = {
         id: selectedRole === 'ADMIN' ? 'u-admin' : 'u-coll-1',
-        username: username || (selectedRole === 'ADMIN' ? 'Administrator' : 'Collector_01'),
+        username: username || (selectedRole === 'ADMIN' ? 'Admin' : 'Collector_01'),
         role: selectedRole,
         balance: selectedRole === 'ADMIN' ? 0 : 5000,
         token: 'mock-jwt-token-' + Date.now()
@@ -33,34 +32,33 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4 relative overflow-hidden">
-      {/* Background decoration */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-[120px]"></div>
 
       <div className="w-full max-w-md z-10">
         <div className="text-center mb-10">
           <div className="w-20 h-20 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center text-4xl font-bold text-white shadow-2xl shadow-indigo-600/30 mb-4">
-            3D
+            MB
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Banker Pro</h1>
-          <p className="text-slate-400 mt-2">Sign in to manage lottery operations</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">MgBaDin</h1>
+          <p className="text-slate-400 mt-2">အကောင့်ဝင်ပြီး စာရင်းများ စတင်စီမံပါ</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-8 rounded-2xl shadow-2xl">
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">Username</label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">အသုံးပြုသူအမည်</label>
               <input 
                 type="text" 
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
-                placeholder="Enter username"
+                placeholder="အမည်ရိုက်ထည့်ပါ"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">Password</label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">လျှို့ဝှက်နံပါတ်</label>
               <input 
                 type="password" 
                 value={password}
@@ -79,7 +77,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               {isLoading ? (
                 <i className="fa-solid fa-circle-notch animate-spin"></i>
               ) : (
-                'Sign In'
+                'အကောင့်ဝင်ရန်'
               )}
             </button>
           </div>
@@ -90,19 +88,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               onClick={(e) => handleSubmit(e, 'ADMIN')}
               className="text-xs text-slate-500 hover:text-indigo-400 transition-colors bg-slate-950 border border-slate-800 py-2 rounded-lg"
             >
-              Demo Admin
+              အက်ဒမင် (Admin)
             </button>
             <button 
               type="button"
               onClick={(e) => handleSubmit(e, 'COLLECTOR')}
               className="text-xs text-slate-500 hover:text-emerald-400 transition-colors bg-slate-950 border border-slate-800 py-2 rounded-lg"
             >
-              Demo Collector
+              စာရင်းကိုင် (Collector)
             </button>
           </div>
         </form>
         <p className="text-center text-slate-600 text-xs mt-8">
-          Secure Multi-Auth System &copy; 2024
+          လုံခြုံစိတ်ချရသော စနစ် &copy; ၂၀၂၄
         </p>
       </div>
     </div>

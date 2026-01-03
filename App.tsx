@@ -3,12 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { User, GamePhase, Bet, LedgerEntry } from './types';
 import BulkEntry from './components/BulkEntry';
 import RiskDashboard from './components/RiskDashboard';
-import PhaseManager from './components/PhaseManager';
-import AIAssistant from './components/AIAssistant';
+import { PhaseManager } from './components/PhaseManager';
 import Login from './components/Login';
 import UserHistory from './components/UserHistory';
 
-type TabType = 'entry' | 'risk' | 'phases' | 'ai' | 'history';
+type TabType = 'entry' | 'risk' | 'phases' | 'history';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -107,7 +106,7 @@ const App: React.FC = () => {
   const handleNewBets = (newBets: { number: string; amount: number }[]) => {
     if (!currentUser || !activePhase) return;
     if (ledger.some(l => l.phaseId === activePhase.id)) {
-      alert("This phase is settled and cannot accept new bets.");
+      alert("ဤလုပ်ငန်းစဉ်မှာ စာရင်းပိတ်ပြီးသားဖြစ်သဖြင့် အသစ်လက်ခံ၍မရတော့ပါ။");
       return;
     }
     
@@ -208,19 +207,19 @@ const App: React.FC = () => {
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   const navItems = [
-    { id: 'entry', label: 'Bulk Entry', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'history', label: 'My History', icon: 'fa-history', roles: ['COLLECTOR'] },
-    { id: 'risk', label: 'Risk Analysis', icon: 'fa-chart-line', roles: ['ADMIN'] },
-    { id: 'phases', label: 'Phase Control', icon: 'fa-calendar-days', roles: ['ADMIN'] },
-    { id: 'ai', label: 'AI Intelligence', icon: 'fa-brain', roles: ['ADMIN'] },
+    { id: 'entry', label: 'စာရင်းသွင်းရန်', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
+    { id: 'history', label: 'ကျွန်ုပ်မှတ်တမ်း', icon: 'fa-history', roles: ['COLLECTOR'] },
+    { id: 'risk', label: '3D overview', icon: 'fa-chart-line', roles: ['ADMIN'] },
+    { id: 'phases', label: 'အစီအစဉ်ထိန်းချုပ်မှု', icon: 'fa-calendar-days', roles: ['ADMIN'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
   return (
-    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
-      <nav className="w-20 md:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col p-4 print:hidden">
+    <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
+      {/* Desktop Sidebar */}
+      <nav className="hidden md:flex w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col p-4 print:hidden">
         <div className="mb-10 px-2 flex items-center space-x-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl font-bold text-white shadow-lg">3D</div>
-          <span className="hidden md:block text-xl font-black tracking-tight text-slate-900 dark:text-white">Banker Pro</span>
+          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl font-bold text-white shadow-lg">MB</div>
+          <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">MgBaDin</span>
         </div>
 
         <div className="space-y-2 flex-grow">
@@ -231,7 +230,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
             >
               <i className={`fa-solid ${item.icon} w-6`}></i>
-              <span className="hidden md:block ml-3 font-medium">{item.label}</span>
+              <span className="ml-3 font-medium">{item.label}</span>
             </button>
           ))}
         </div>
@@ -242,45 +241,79 @@ const App: React.FC = () => {
             className="w-full flex items-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-6`}></i>
-            <span className="hidden md:block ml-3 font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            <span className="ml-3 font-medium">{theme === 'dark' ? 'နေ့ဘက်စနစ်' : 'ညဘက်စနစ်'}</span>
           </button>
           
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
               {currentUser.username.charAt(0).toUpperCase()}
             </div>
-            <div className="hidden md:block text-sm overflow-hidden">
+            <div className="text-sm overflow-hidden">
               <p className="font-semibold truncate text-slate-900 dark:text-white">{currentUser.username}</p>
               <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${currentUser.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'}`}>
-                {currentUser.role}
+                {currentUser.role === 'ADMIN' ? 'အက်ဒမင်' : 'စာရင်းကိုင်'}
               </span>
             </div>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center p-3 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
             <i className="fa-solid fa-right-from-bracket w-6"></i>
-            <span className="hidden md:block ml-3 font-medium">Logout</span>
+            <span className="ml-3 font-medium">အကောင့်ထွက်ရန်</span>
           </button>
         </div>
       </nav>
 
-      <main className="flex-grow p-6 overflow-y-auto custom-scrollbar print:p-0">
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-6 py-2 pb-safe flex justify-between items-center print:hidden">
+        {navItems.map((item) => (
+          <button 
+            key={item.id}
+            onClick={() => setActiveTab(item.id as TabType)}
+            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === item.id ? 'text-indigo-600 dark:text-indigo-400 scale-110' : 'text-slate-400'}`}
+          >
+            <i className={`fa-solid ${item.icon} text-lg`}></i>
+            <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">{item.label}</span>
+          </button>
+        ))}
+        <button 
+          onClick={handleLogout}
+          className="flex flex-col items-center p-2 rounded-xl text-slate-400"
+        >
+          <i className="fa-solid fa-power-off text-lg"></i>
+          <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">ထွက်ရန်</span>
+        </button>
+      </nav>
+
+      {/* Mobile Top Header (Small Screens Only) */}
+      <header className="md:hidden sticky top-0 z-40 bg-white dark:bg-slate-950 px-5 py-4 flex justify-between items-center border-b border-slate-100 dark:border-slate-900">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-lg">MB</div>
+          <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase">MgBaDin</span>
+        </div>
+        <button 
+          onClick={toggleTheme}
+          className="w-10 h-10 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center text-slate-500"
+        >
+          <i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i>
+        </button>
+      </header>
+
+      <main className="flex-grow p-4 md:p-6 overflow-y-auto custom-scrollbar print:p-0 mb-20 md:mb-0">
+        <header className="mb-6 hidden md:flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-              {activeTab === 'entry' && 'Terminal Entry'}
-              {activeTab === 'risk' && 'Phase Intelligence'}
-              {activeTab === 'phases' && 'Operation Slots'}
-              {activeTab === 'ai' && 'Risk Analytics'}
-              {activeTab === 'history' && 'Collection Log'}
+              {activeTab === 'entry' && 'စာရင်းသွင်းကောင်တာ'}
+              {activeTab === 'risk' && '3D overview'}
+              {activeTab === 'phases' && 'အစီအစဉ်ကဏ္ဍများ'}
+              {activeTab === 'history' && 'စာရင်းမှတ်တမ်း'}
             </h1>
             <div className="flex items-center space-x-2 mt-1">
-              <p className="text-slate-500 text-sm">Context:</p>
+              <p className="text-slate-500 text-sm">လက်ရှိ:</p>
               {activePhase ? (
                 <div className="flex items-center space-x-3">
                   <span className="text-indigo-600 dark:text-indigo-400 font-black">{activePhase.name}</span>
                   {isReadOnly && (
                     <span className="text-[10px] bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-500 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 font-black uppercase">
-                      Settled
+                      စာရင်းပိတ်ပြီး
                     </span>
                   )}
                   {currentUser.role === 'ADMIN' && (
@@ -292,12 +325,12 @@ const App: React.FC = () => {
                       className="flex items-center space-x-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 transition-all text-[10px] font-black uppercase tracking-wider"
                     >
                       <i className="fa-solid fa-right-left"></i>
-                      <span>Change Slot</span>
+                      <span>အစီအစဉ်ပြောင်းရန်</span>
                     </button>
                   )}
                 </div>
               ) : (
-                <span className="text-slate-400 italic text-sm">No phase selected</span>
+                <span className="text-slate-400 italic text-sm">အစီအစဉ်ရွေးချယ်ထားခြင်းမရှိပါ</span>
               )}
             </div>
           </div>
@@ -305,21 +338,35 @@ const App: React.FC = () => {
           {activePhase && (
             <div className="flex space-x-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-lg shadow-sm">
-                <p className="text-[10px] text-slate-500 uppercase font-black">Gross Volume</p>
-                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Ks {activePhase.totalVolume.toLocaleString()}</p>
+                <p className="text-[10px] text-slate-500 uppercase font-black">စုစုပေါင်းပမာဏ</p>
+                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">ကျပ် {activePhase.totalVolume.toLocaleString()}</p>
               </div>
             </div>
           )}
         </header>
 
+        {/* Mobile-Only Summary Chip */}
+        {activePhase && (
+          <div className="md:hidden flex items-center justify-between mb-4 bg-indigo-600 dark:bg-indigo-600 text-white px-4 py-3 rounded-2xl shadow-lg shadow-indigo-600/20">
+            <div>
+              <p className="text-[8px] font-black uppercase opacity-70">လက်ရှိအစီအစဉ်</p>
+              <h2 className="text-lg font-black leading-tight">{activePhase.name}</h2>
+            </div>
+            <div className="text-right">
+              <p className="text-[8px] font-black uppercase opacity-70">စုစုပေါင်းထိုးငွေ</p>
+              <p className="text-lg font-bold leading-tight">ကျပ် {activePhase.totalVolume.toLocaleString()}</p>
+            </div>
+          </div>
+        )}
+
         <div className="animate-fade-in pb-10">
           {activeTab === 'entry' && (
             activePhase 
               ? <BulkEntry onNewBets={handleNewBets} readOnly={isReadOnly} />
-              : <div className="text-center py-32 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+              : <div className="text-center py-20 md:py-32 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
                   <i className="fa-solid fa-calendar-xmark text-6xl text-slate-300 dark:text-slate-800 mb-6 block"></i>
-                  <h3 className="text-2xl font-black text-slate-400 dark:text-slate-600">Select an Operation Slot</h3>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">Go to Phase Manager</button>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-400 dark:text-slate-600">အစီအစဉ်ကဏ္ဍတစ်ခုကို ရွေးချယ်ပါ</h3>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">အစီအစဉ်ထိန်းချုပ်မှုသို့ သွားရန်</button>
                 </div>
           )}
           {activeTab === 'risk' && currentUser.role === 'ADMIN' && (
@@ -334,8 +381,8 @@ const App: React.FC = () => {
                   isReadOnly={isReadOnly}
                 />
               : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                  <p className="text-slate-400 font-bold">Select a phase to view its risk distribution.</p>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Choose Phase</button>
+                  <p className="text-slate-400 font-bold">3D overview ကြည့်ရန် အစီအစဉ်တစ်ခုရွေးချယ်ပေးပါ။</p>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">အစီအစဉ်ရွေးရန်</button>
                 </div>
           )}
           {activeTab === 'phases' && currentUser.role === 'ADMIN' && (
@@ -347,14 +394,6 @@ const App: React.FC = () => {
               onSelectPhase={handleSelectPhase}
               bets={allBets}
             />
-          )}
-          {activeTab === 'ai' && currentUser.role === 'ADMIN' && (
-            activePhase
-              ? <AIAssistant bets={currentPhaseBets} limits={limits} />
-              : <div className="text-center py-20 bg-white dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                  <p className="text-slate-400 font-bold">Risk AI requires an active context.</p>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Choose Phase</button>
-                </div>
           )}
           {activeTab === 'history' && currentUser.role === 'COLLECTOR' && (
             <UserHistory bets={allBets.filter(b => b.userId === currentUser.id && (!activePhase || b.phaseId === activePhase.id))} />
