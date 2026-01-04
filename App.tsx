@@ -200,8 +200,8 @@ const App: React.FC = () => {
       phaseId: activePhase.id,
       userId: currentUser.id,
       userRole: currentUser.role,
-      number: 'ADJ', // Reserved code for fake volume entries
-      amount: Math.abs(amount), // Force positive as per request
+      number: 'ADJ', // Reserved code for adjustments
+      amount: Math.abs(amount), // Force positive
       timestamp: new Date().toISOString()
     };
 
@@ -421,7 +421,7 @@ const App: React.FC = () => {
           {activePhase && currentUser.role === 'ADMIN' && (
             <div className="flex space-x-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-lg shadow-sm">
-                <p className="text-[10px] text-slate-500 uppercase font-black">Net Turnover</p>
+                <p className="text-[10px] text-slate-500 uppercase font-black">Total</p>
                 <p className={`text-lg font-bold ${activePhase.totalVolume >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {activePhase.totalVolume.toLocaleString()}
                 </p>

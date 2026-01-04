@@ -246,7 +246,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
             <i className="fa-solid fa-chart-pie"></i>
           </div>
           <div>
-            <p className="text-[11px] font-black uppercase opacity-50 tracking-widest mb-1">Combined Turnover</p>
+            <p className="text-[11px] font-black uppercase opacity-50 tracking-widest mb-1">Total</p>
             <p className="text-4xl md:text-6xl font-black tracking-tighter text-indigo-400">{financialSummary.toLocaleString()}</p>
           </div>
         </div>
@@ -317,7 +317,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
                         <p className="text-4xl font-black leading-none">{activeStats.length}</p>
                      </div>
                      <div className="text-right">
-                        <p className="text-[12px] font-black uppercase opacity-40 mb-2 tracking-[0.2em]">COMBINED TURNOVER</p>
+                        <p className="text-[12px] font-black uppercase opacity-40 mb-2 tracking-[0.2em]">TOTAL</p>
                         <div className="bg-black text-white px-8 py-5 rounded-xl inline-block shadow-lg">
                            <p className="text-6xl font-black tracking-tighter leading-none">
                              {financialSummary.toLocaleString()}
@@ -352,7 +352,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       {/* Adjustment Modal */}
       {selectedNumber && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-scale-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-sm w-full shadow-2xl animate-scale-in">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-black">Adjust #{selectedNumber}</h3>
               <button onClick={() => setSelectedNumber(null)} className="text-slate-400 hover:text-red-500 transition-colors">

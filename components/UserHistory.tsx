@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Bet } from '../types';
 
@@ -19,7 +18,7 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
           <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{bets.length}</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm border-l-4 border-l-emerald-500">
-          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Total Turnover</p>
+          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Total</p>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">
             {totalVolume.toLocaleString()}
           </p>
