@@ -21,6 +21,7 @@ export interface Bet {
   id: string;
   phaseId: string;
   userId: string;
+  userRole: 'ADMIN' | 'COLLECTOR';
   number: string; // "000" to "999"
   amount: number;
   timestamp: string;

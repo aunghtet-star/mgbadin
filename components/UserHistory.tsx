@@ -15,11 +15,11 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm">
-          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">အရေအတွက်</p>
+          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Quantity</p>
           <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{bets.length}</p>
         </div>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-sm border-l-4 border-l-emerald-500">
-          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">စုစုပေါင်းထိုးငွေ</p>
+          <p className="text-[10px] text-slate-400 uppercase font-black mb-1">Total Turnover</p>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">
             {totalVolume.toLocaleString()}
           </p>
@@ -31,9 +31,9 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
         <table className="w-full text-left">
           <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
             <tr>
-              <th className="px-8 py-5">အချိန်</th>
-              <th className="px-8 py-5">ဂဏန်း</th>
-              <th className="px-8 py-5 text-right">ပမာဏ</th>
+              <th className="px-8 py-5">Time</th>
+              <th className="px-8 py-5">Number</th>
+              <th className="px-8 py-5 text-right">Amount</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -63,7 +63,7 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
                 </span>
               </div>
               <div>
-                <p className="text-sm font-black text-slate-900 dark:text-white">ကျပ် {bet.amount.toLocaleString()}</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">{bet.amount.toLocaleString()}</p>
                 <p className="text-[10px] text-slate-400 font-black uppercase">
                    {new Date(bet.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -76,7 +76,7 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
         {sortedBets.length === 0 && (
           <div className="py-20 text-center bg-white dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
             <i className="fa-solid fa-box-open text-4xl text-slate-200 mb-4 block"></i>
-            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">မှတ်တမ်းမရှိသေးပါ</p>
+            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No records found</p>
           </div>
         )}
       </div>

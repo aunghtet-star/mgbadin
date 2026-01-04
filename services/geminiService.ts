@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 export interface ExtractedBet {
@@ -11,7 +10,8 @@ export interface ExtractedBet {
 export const extractBetsFromImage = async (base64Image: string): Promise<ExtractedBet[]> => {
   // Use a fresh instance to ensure correct API key usage
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = "gemini-flash-latest"; // Using the latest flash model for vision reliability
+  // Fix: Use 'gemini-3-flash-preview' for basic text extraction tasks from images
+  const model = "gemini-3-flash-preview";
   
   const prompt = `
     Extract lottery betting data from this image. 

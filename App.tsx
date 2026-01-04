@@ -1,13 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, GamePhase, Bet, LedgerEntry } from './types';
 import BulkEntry from './components/BulkEntry';
 import RiskDashboard from './components/RiskDashboard';
+import ExcessDashboard from './components/ExcessDashboard';
 import { PhaseManager } from './components/PhaseManager';
 import Login from './components/Login';
 import UserHistory from './components/UserHistory';
+import AdjustmentsManager from './components/AdjustmentsManager';
 
-type TabType = 'entry' | 'risk' | 'phases' | 'history';
+type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' | 'adjustments';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -32,9 +33,9 @@ const App: React.FC = () => {
   });
 
   const [limits, setLimits] = useState<Record<string, number>>({
-    'global': 50000,
-    '777': 20000,
-    '000': 10000
+    'global': 5000,
+    '777': 2000,
+    '000': 1000
   });
 
   useEffect(() => {
@@ -106,15 +107,16 @@ const App: React.FC = () => {
   const handleNewBets = (newBets: { number: string; amount: number }[]) => {
     if (!currentUser || !activePhase) return;
     if (ledger.some(l => l.phaseId === activePhase.id)) {
-      alert("ဤလုပ်ငန်းစဉ်မှာ စာရင်းပိတ်ပြီးသားဖြစ်သဖြင့် အသစ်လက်ခံ၍မရတော့ပါ။");
+      alert("This phase is already closed and cannot accept new bets.");
       return;
     }
     
     const timestamp = new Date().toISOString();
     const preparedBets: Bet[] = newBets.map((b, i) => ({
-      id: `b-${Date.now()}-${i}`,
+      id: `b-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
       phaseId: activePhase.id,
       userId: currentUser.id,
+      userRole: currentUser.role,
       number: b.number,
       amount: b.amount,
       timestamp
@@ -129,6 +131,32 @@ const App: React.FC = () => {
     }) : null);
   };
 
+  const handleBulkReduction = (reductionBets: { number: string; amount: number }[]) => {
+    if (!currentUser || !activePhase) return;
+    if (ledger.some(l => l.phaseId === activePhase.id)) {
+      alert("This phase is settled.");
+      return;
+    }
+    
+    const timestamp = new Date().toISOString();
+    const preparedReductions: Bet[] = reductionBets.map((b, i) => ({
+      id: `red-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+      phaseId: activePhase.id,
+      userId: currentUser.id,
+      userRole: currentUser.role,
+      number: b.number,
+      amount: -Math.abs(b.amount), 
+      timestamp
+    }));
+
+    setAllBets(prev => [...prev, ...preparedReductions]);
+    
+    setActivePhase(prev => prev ? ({
+      ...prev,
+      totalVolume: Math.max(-10000000, prev.totalVolume - Math.abs(reductionBets.reduce((a,c)=>a+c.amount, 0)))
+    }) : null);
+  };
+
   const handleVoidBet = (betId: string) => {
     if (!activePhase || ledger.some(l => l.phaseId === activePhase.id)) return;
     
@@ -140,11 +168,11 @@ const App: React.FC = () => {
     setActivePhase(prev => prev ? ({
       ...prev,
       totalBets: Math.max(0, prev.totalBets - 1),
-      totalVolume: Math.max(0, prev.totalVolume - betToVoid.amount)
+      totalVolume: prev.totalVolume - betToVoid.amount
     }) : null);
   };
 
-  const handleUpdateBetAmount = (betId: string, newAmount: number) => {
+  const handleUpdateBetAmount = (betId: string, newAmount: number, newNumber?: string) => {
     if (!activePhase || ledger.some(l => l.phaseId === activePhase.id)) return;
     
     const betToUpdate = allBets.find(b => b.id === betId);
@@ -152,31 +180,82 @@ const App: React.FC = () => {
 
     const difference = betToUpdate.amount - newAmount;
 
-    setAllBets(prev => prev.map(b => b.id === betId ? { ...b, amount: newAmount } : b));
+    setAllBets(prev => prev.map(b => b.id === betId ? { 
+      ...b, 
+      amount: newAmount, 
+      number: newNumber !== undefined ? newNumber : b.number 
+    } : b));
     
     setActivePhase(prev => prev ? ({
       ...prev,
-      totalVolume: Math.max(0, prev.totalVolume - difference)
+      totalVolume: prev.totalVolume - difference
     }) : null);
   };
 
-  const handleApplyReduction = (number: string, reductionAmount: number) => {
+  const handleApplyAdjustment = (amount: number) => {
     if (!activePhase || !currentUser || ledger.some(l => l.phaseId === activePhase.id)) return;
 
-    const correctionBet: Bet = {
-      id: `corr-${Date.now()}`,
+    const adjBet: Bet = {
+      id: `adj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       phaseId: activePhase.id,
       userId: currentUser.id,
-      number: number,
-      amount: -reductionAmount,
+      userRole: currentUser.role,
+      number: 'ADJ', // Reserved code for fake volume entries
+      amount: Math.abs(amount), // Force positive as per request
       timestamp: new Date().toISOString()
     };
 
-    setAllBets(prev => [...prev, correctionBet]);
+    setAllBets(prev => [...prev, adjBet]);
     
     setActivePhase(prev => prev ? ({
       ...prev,
-      totalVolume: Math.max(0, prev.totalVolume - reductionAmount)
+      totalVolume: prev.totalVolume + Math.abs(amount)
+    }) : null);
+  };
+
+  const handleClearExcess = () => {
+    if (!activePhase || !currentUser || ledger.some(l => l.phaseId === activePhase.id)) return;
+
+    const totals: Record<string, number> = {};
+    const phaseBets = allBets.filter(b => b.phaseId === activePhase.id);
+    phaseBets.forEach(b => {
+      totals[b.number] = (totals[b.number] || 0) + b.amount;
+    });
+
+    const timestamp = new Date().toISOString();
+    const corrections: Bet[] = [];
+    let totalReduction = 0;
+
+    for (let i = 0; i < 1000; i++) {
+      const numStr = i.toString().padStart(3, '0');
+      const total = totals[numStr] || 0;
+      const limit = limits[numStr] || limits['global'] || 5000;
+      const excess = total - limit;
+
+      if (excess > 0) {
+        corrections.push({
+          id: `corr-auto-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
+          phaseId: activePhase.id,
+          userId: currentUser.id,
+          userRole: currentUser.role,
+          number: numStr,
+          amount: -excess,
+          timestamp
+        });
+        totalReduction += excess;
+      }
+    }
+
+    if (corrections.length === 0) {
+      alert("No excess volume found to clear.");
+      return;
+    }
+
+    setAllBets(prev => [...prev, ...corrections]);
+    
+    setActivePhase(prev => prev ? ({
+      ...prev,
+      totalVolume: Math.max(-10000000, prev.totalVolume - totalReduction)
     }) : null);
   };
 
@@ -207,15 +286,17 @@ const App: React.FC = () => {
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   const navItems = [
-    { id: 'entry', label: 'စာရင်းသွင်းရန်', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'history', label: 'ကျွန်ုပ်မှတ်တမ်း', icon: 'fa-history', roles: ['COLLECTOR'] },
-    { id: 'risk', label: '3D overview', icon: 'fa-chart-line', roles: ['ADMIN'] },
-    { id: 'phases', label: 'အစီအစဉ်ထိန်းချုပ်မှု', icon: 'fa-calendar-days', roles: ['ADMIN'] },
+    { id: 'entry', label: 'ထိုးမည်', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
+    { id: 'reduction', label: 'လျှော့မည်', icon: 'fa-minus-circle', roles: ['ADMIN', 'COLLECTOR'] },
+    { id: 'adjustments', label: 'Adjust Amount', icon: 'fa-calculator', roles: ['ADMIN'] },
+    { id: 'history', label: 'My History', icon: 'fa-history', roles: ['COLLECTOR'] },
+    { id: 'risk', label: '3D Overview', icon: 'fa-chart-line', roles: ['ADMIN'] },
+    { id: 'excess', label: '3D ကျွံ', icon: 'fa-fire-alt', roles: ['ADMIN'] },
+    { id: 'phases', label: 'အပတ်စဥ်', icon: 'fa-calendar-days', roles: ['ADMIN'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
-      {/* Desktop Sidebar */}
       <nav className="hidden md:flex w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col p-4 print:hidden">
         <div className="mb-10 px-2 flex items-center space-x-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl font-bold text-white shadow-lg">MB</div>
@@ -227,7 +308,7 @@ const App: React.FC = () => {
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id as TabType)}
-              className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
+              className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === item.id ? (item.id === 'reduction' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20') : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
             >
               <i className={`fa-solid ${item.icon} w-6`}></i>
               <span className="ml-3 font-medium">{item.label}</span>
@@ -241,7 +322,7 @@ const App: React.FC = () => {
             className="w-full flex items-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-6`}></i>
-            <span className="ml-3 font-medium">{theme === 'dark' ? 'နေ့ဘက်စနစ်' : 'ညဘက်စနစ်'}</span>
+            <span className="ml-3 font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
           
           <div className="flex items-center space-x-3">
@@ -251,24 +332,24 @@ const App: React.FC = () => {
             <div className="text-sm overflow-hidden">
               <p className="font-semibold truncate text-slate-900 dark:text-white">{currentUser.username}</p>
               <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${currentUser.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'}`}>
-                {currentUser.role === 'ADMIN' ? 'အက်ဒမင်' : 'စာရင်းကိုင်'}
+                {currentUser.role === 'ADMIN' ? 'Admin' : 'Collector'}
               </span>
             </div>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center p-3 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
             <i className="fa-solid fa-right-from-bracket w-6"></i>
-            <span className="ml-3 font-medium">အကောင့်ထွက်ရန်</span>
+            <span className="ml-3 font-medium">Logout</span>
           </button>
         </div>
       </nav>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-6 py-2 pb-safe flex justify-between items-center print:hidden">
         {navItems.map((item) => (
           <button 
             key={item.id}
             onClick={() => setActiveTab(item.id as TabType)}
-            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === item.id ? 'text-indigo-600 dark:text-indigo-400 scale-110' : 'text-slate-400'}`}
+            className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === item.id ? (item.id === 'reduction' ? 'text-rose-600' : 'text-indigo-600 dark:text-indigo-400') + ' scale-110' : 'text-slate-400'}`}
           >
             <i className={`fa-solid ${item.icon} text-lg`}></i>
             <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">{item.label}</span>
@@ -279,11 +360,10 @@ const App: React.FC = () => {
           className="flex flex-col items-center p-2 rounded-xl text-slate-400"
         >
           <i className="fa-solid fa-power-off text-lg"></i>
-          <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">ထွက်ရန်</span>
+          <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">Exit</span>
         </button>
       </nav>
 
-      {/* Mobile Top Header (Small Screens Only) */}
       <header className="md:hidden sticky top-0 z-40 bg-white dark:bg-slate-950 px-5 py-4 flex justify-between items-center border-b border-slate-100 dark:border-slate-900">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-lg">MB</div>
@@ -301,19 +381,22 @@ const App: React.FC = () => {
         <header className="mb-6 hidden md:flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-              {activeTab === 'entry' && 'စာရင်းသွင်းကောင်တာ'}
-              {activeTab === 'risk' && '3D overview'}
-              {activeTab === 'phases' && 'အစီအစဉ်ကဏ္ဍများ'}
-              {activeTab === 'history' && 'စာရင်းမှတ်တမ်း'}
+              {activeTab === 'entry' && 'ထိုးမည်'}
+              {activeTab === 'reduction' && 'လျှော့မည်'}
+              {activeTab === 'adjustments' && 'Adjust Amount'}
+              {activeTab === 'risk' && '3D Overview'}
+              {activeTab === 'excess' && '3D ကျွံ စာရင်း'}
+              {activeTab === 'phases' && 'အပတ်စဥ် စီမံခန့်ခွဲမှု'}
+              {activeTab === 'history' && 'Transaction History'}
             </h1>
             <div className="flex items-center space-x-2 mt-1">
-              <p className="text-slate-500 text-sm">လက်ရှိ:</p>
+              <p className="text-slate-500 text-sm">Active:</p>
               {activePhase ? (
                 <div className="flex items-center space-x-3">
                   <span className="text-indigo-600 dark:text-indigo-400 font-black">{activePhase.name}</span>
                   {isReadOnly && (
                     <span className="text-[10px] bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-500 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 font-black uppercase">
-                      စာရင်းပိတ်ပြီး
+                      Settled
                     </span>
                   )}
                   {currentUser.role === 'ADMIN' && (
@@ -325,48 +408,59 @@ const App: React.FC = () => {
                       className="flex items-center space-x-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 transition-all text-[10px] font-black uppercase tracking-wider"
                     >
                       <i className="fa-solid fa-right-left"></i>
-                      <span>အစီအစဉ်ပြောင်းရန်</span>
+                      <span>Switch Phase</span>
                     </button>
                   )}
                 </div>
               ) : (
-                <span className="text-slate-400 italic text-sm">အစီအစဉ်ရွေးချယ်ထားခြင်းမရှိပါ</span>
+                <span className="text-slate-400 italic text-sm">No phase selected</span>
               )}
             </div>
           </div>
 
-          {activePhase && (
+          {activePhase && currentUser.role === 'ADMIN' && (
             <div className="flex space-x-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-lg shadow-sm">
-                <p className="text-[10px] text-slate-500 uppercase font-black">စုစုပေါင်းပမာဏ</p>
-                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">ကျပ် {activePhase.totalVolume.toLocaleString()}</p>
+                <p className="text-[10px] text-slate-500 uppercase font-black">Net Turnover</p>
+                <p className={`text-lg font-bold ${activePhase.totalVolume >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {activePhase.totalVolume.toLocaleString()}
+                </p>
               </div>
             </div>
           )}
         </header>
 
-        {/* Mobile-Only Summary Chip */}
-        {activePhase && (
-          <div className="md:hidden flex items-center justify-between mb-4 bg-indigo-600 dark:bg-indigo-600 text-white px-4 py-3 rounded-2xl shadow-lg shadow-indigo-600/20">
-            <div>
-              <p className="text-[8px] font-black uppercase opacity-70">လက်ရှိအစီအစဉ်</p>
-              <h2 className="text-lg font-black leading-tight">{activePhase.name}</h2>
-            </div>
-            <div className="text-right">
-              <p className="text-[8px] font-black uppercase opacity-70">စုစုပေါင်းထိုးငွေ</p>
-              <p className="text-lg font-bold leading-tight">ကျပ် {activePhase.totalVolume.toLocaleString()}</p>
-            </div>
-          </div>
-        )}
-
         <div className="animate-fade-in pb-10">
           {activeTab === 'entry' && (
             activePhase 
-              ? <BulkEntry onNewBets={handleNewBets} readOnly={isReadOnly} />
+              ? <BulkEntry onNewBets={handleNewBets} readOnly={isReadOnly} variant="entry" />
               : <div className="text-center py-20 md:py-32 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
                   <i className="fa-solid fa-calendar-xmark text-6xl text-slate-300 dark:text-slate-800 mb-6 block"></i>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-400 dark:text-slate-600">အစီအစဉ်ကဏ္ဍတစ်ခုကို ရွေးချယ်ပါ</h3>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">အစီအစဉ်ထိန်းချုပ်မှုသို့ သွားရန်</button>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-400 dark:text-slate-600">Please select an active phase</h3>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">Go to Phase Management</button>
+                </div>
+          )}
+          {activeTab === 'reduction' && (
+            activePhase 
+              ? <BulkEntry onNewBets={handleBulkReduction} readOnly={isReadOnly} variant="reduction" />
+              : <div className="text-center py-20 md:py-32 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <i className="fa-solid fa-minus-circle text-6xl text-slate-300 dark:text-slate-800 mb-6 block"></i>
+                  <h3 className="text-xl md:text-2xl font-black text-slate-400 dark:text-slate-600">Please select an active phase</h3>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-rose-600 hover:underline font-bold">Go to Phase Management</button>
+                </div>
+          )}
+          {activeTab === 'adjustments' && currentUser.role === 'ADMIN' && (
+            activePhase 
+              ? <AdjustmentsManager 
+                  bets={currentPhaseBets} 
+                  onApplyAdjustment={handleApplyAdjustment}
+                  onVoidAdjustment={handleVoidBet}
+                  onUpdateAdjustment={handleUpdateBetAmount}
+                  isReadOnly={isReadOnly}
+                />
+              : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <p className="text-slate-400 font-bold">Select a phase to manage adjustments.</p>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Select Phase</button>
                 </div>
           )}
           {activeTab === 'risk' && currentUser.role === 'ADMIN' && (
@@ -377,12 +471,25 @@ const App: React.FC = () => {
                   onUpdateLimit={(num, lim) => setLimits(prev => ({ ...prev, [num]: lim }))} 
                   onVoidBet={handleVoidBet}
                   onUpdateBetAmount={handleUpdateBetAmount}
-                  onApplyReduction={handleApplyReduction}
+                  onApplyReduction={handleBulkReduction as any}
                   isReadOnly={isReadOnly}
                 />
               : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                  <p className="text-slate-400 font-bold">3D overview ကြည့်ရန် အစီအစဉ်တစ်ခုရွေးချယ်ပေးပါ။</p>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">အစီအစဉ်ရွေးရန်</button>
+                  <p className="text-slate-400 font-bold">Select a phase to view 3D overview.</p>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Select Phase</button>
+                </div>
+          )}
+          {activeTab === 'excess' && currentUser.role === 'ADMIN' && (
+            activePhase 
+              ? <ExcessDashboard 
+                  bets={currentPhaseBets} 
+                  limits={limits} 
+                  onClearExcess={handleClearExcess}
+                  isReadOnly={isReadOnly}
+                />
+              : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <p className="text-slate-400 font-bold">Select a phase to view Excess Risk.</p>
+                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Select Phase</button>
                 </div>
           )}
           {activeTab === 'phases' && currentUser.role === 'ADMIN' && (

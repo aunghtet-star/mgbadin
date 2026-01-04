@@ -41,24 +41,24 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             MB
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">MgBaDin</h1>
-          <p className="text-slate-400 mt-2">အကောင့်ဝင်ပြီး စာရင်းများ စတင်စီမံပါ</p>
+          <p className="text-slate-400 mt-2">Login to manage your entries</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-8 rounded-2xl shadow-2xl">
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">အသုံးပြုသူအမည်</label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">Username</label>
               <input 
                 type="text" 
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
-                placeholder="အမည်ရိုက်ထည့်ပါ"
+                placeholder="Enter your username"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">လျှို့ဝှက်နံပါတ်</label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">Password</label>
               <input 
                 type="password" 
                 value={password}
@@ -77,7 +77,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               {isLoading ? (
                 <i className="fa-solid fa-circle-notch animate-spin"></i>
               ) : (
-                'အကောင့်ဝင်ရန်'
+                'Login'
               )}
             </button>
           </div>
@@ -88,19 +88,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               onClick={(e) => handleSubmit(e, 'ADMIN')}
               className="text-xs text-slate-500 hover:text-indigo-400 transition-colors bg-slate-950 border border-slate-800 py-2 rounded-lg"
             >
-              အက်ဒမင် (Admin)
+              Admin Mock
             </button>
             <button 
               type="button"
               onClick={(e) => handleSubmit(e, 'COLLECTOR')}
               className="text-xs text-slate-500 hover:text-emerald-400 transition-colors bg-slate-950 border border-slate-800 py-2 rounded-lg"
             >
-              စာရင်းကိုင် (Collector)
+              Collector Mock
             </button>
           </div>
         </form>
         <p className="text-center text-slate-600 text-xs mt-8">
-          လုံခြုံစိတ်ချရသော စနစ် &copy; ၂၀၂၄
+          Secure Fintech Platform &copy; 2024
         </p>
       </div>
     </div>

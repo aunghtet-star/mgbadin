@@ -23,21 +23,30 @@ export const getPermutations = (str: string): string[] => {
 };
 
 /**
- * Smart Parser: Handles 123-500, 456R1000, 456R-1000, 789/200
+ * Smart Parser: Handles a wide variety of shorthand notations.
+ * Supports: 123-1000, 123R1000, 123 R 1000, 123@1000, 123*1000, 123 1000, etc.
  */
 export const parseBulkInput = (input: string): { number: string; amount: number; original: string; isPermutation: boolean }[] => {
   const bets: { number: string; amount: number; original: string; isPermutation: boolean }[] = [];
   
-  // Updated Regex: 
-  // (\d{3}) -> 3 digits
-  // (?:([Rr])[-/]?|[-/]) -> Either 'R' with optional separator, OR just a separator
-  // (\d+) -> Amount
-  const regex = /(\d{3})(?:([Rr])[-/]?|[-/])(\d+)/g;
+  /**
+   * REGEX BREAKDOWN:
+   * (\d{3})                -> Capture exactly 3 digits (The number)
+   * \s*                    -> Optional whitespace
+   * (?:                    -> Start non-capturing group for separator logic
+   *   ([Rr])\s*[@=*\.,\/\-\s]? -> OR: Capture 'R' or 'r' (Permutation) followed by optional punctuation/space
+   *   |                      -> OR
+   *   [@=*\.,\/\-\s]         -> Just a single punctuation or space separator (Direct bet)
+   * )
+   * \s*                    -> Optional whitespace
+   * (\d+)                  -> Capture 1 or more digits (The amount)
+   */
+  const regex = /(\d{3})\s*(?:([Rr])\s*[@=*\.,\/\-\s]?|[@=*\.,\/\-\s])\s*(\d+)/g;
   let match;
 
   while ((match = regex.exec(input)) !== null) {
     const num = match[1];
-    const isPermutation = !!match[2];
+    const isPermutation = !!match[2]; // If group 2 caught R/r
     const amount = parseInt(match[3], 10);
     const original = match[0];
 
@@ -56,6 +65,7 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
 
 /**
  * Cleaning function for OCR results
+ * Updated to preserve characters used as separators in the new syntax.
  */
 export const cleanOcrText = (text: string): string => {
   return text
@@ -63,7 +73,8 @@ export const cleanOcrText = (text: string): string => {
     .replace(/[oO]/g, '0')
     .replace(/[sS]/g, '5')
     .replace(/[bB]/g, '8')
-    .replace(/[^0-9Rr\-/,\s\n]/g, '')
+    // Preserve numbers, R, r, and the set of valid separators: @, =, *, ., ,, /, -, spaces
+    .replace(/[^0-9Rr\s\n@=*\.,\/\-]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 };
