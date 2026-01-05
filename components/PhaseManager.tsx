@@ -66,7 +66,7 @@ export const PhaseManager: React.FC<PhaseManagerProps> = ({
       <div className="space-y-10 animate-fade-in print:hidden">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="max-w-xl">
-            <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">အပတ်စဥ် စီမံခန့်ခွဲမှု</h2>
+            <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">3 ချပ်အသစ်လုပ်ရန်</h2>
             <p className="text-slate-500 font-medium text-sm">Create and manage your 3D draw cycles or review settled accounts.</p>
           </div>
           

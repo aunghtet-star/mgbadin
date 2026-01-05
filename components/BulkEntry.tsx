@@ -258,16 +258,16 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
             <div className="flex items-center space-x-2">
               <i className={`fa-solid ${isReduction ? 'fa-minus-circle text-rose-500' : 'fa-bolt text-amber-500'}`}></i>
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-slate-200">
-                {isReduction ? 'Rapid Reduction Console' : 'Rapid Entry Console'}
+                {isReduction ? 'အကွက်များပြန်နှုတ်ရန်' : 'အကွက်များတင်ရန်'}
               </span>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
-                <span className="text-[10px] text-slate-500 uppercase font-black block leading-none mb-1">Items</span>
+                <span className="text-[10px] text-slate-500 uppercase font-black block leading-none mb-1">အရေအတွက်</span>
                 <span className={`text-base font-black text-${accentColorClass}-600 dark:text-${accentColorClass}-400 block leading-none`}>{parsedBetsInfo.length}</span>
               </div>
               <div className="text-right border-l border-slate-200 dark:border-slate-700 pl-4">
-                <span className="text-[10px] text-slate-500 uppercase font-black block leading-none mb-1">Batch Total</span>
+                <span className="text-[10px] text-slate-500 uppercase font-black block leading-none mb-1">စုစုပေါင်း</span>
                 <span className={`text-base font-black text-${isReduction ? 'rose' : 'emerald'}-600 dark:text-${isReduction ? 'rose' : 'emerald'}-400 block leading-none`}>
                   {isReduction ? '-' : ''}{totalSum.toLocaleString()}
                 </span>
@@ -299,7 +299,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
 
         <button onClick={handleProcessClick} disabled={!text.trim() || readOnly || parsedBetsInfo.length === 0} className={`w-full py-6 bg-${accentColorClass}-600 hover:bg-${accentColorClass}-500 disabled:opacity-30 rounded-3xl font-black text-2xl text-white transition-all shadow-xl shadow-${accentColorClass}-600/30 flex items-center justify-center space-x-3`}>
           <i className={`fa-solid ${isReduction ? 'fa-minus-square' : 'fa-check-double'}`}></i>
-          <span>{isReduction ? 'Confirm Reductions' : 'Finalize Batch'}</span>
+          <span>{isReduction ? 'နှုတ်မည်' : 'တင်မည်'}</span>
         </button>
       </div>
 
@@ -308,7 +308,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
           <div className={`${isReduction ? 'bg-rose-50 dark:bg-rose-900/10' : 'bg-slate-50 dark:bg-slate-800/30'} px-5 py-4 border-b border-slate-200 dark:border-slate-800`}>
             <h3 className={`text-[10px] font-black uppercase tracking-widest text-${accentColorClass}-600 dark:text-${accentColorClass}-400 flex items-center space-x-2`}>
               <i className={`fa-solid ${isReduction ? 'fa-filter-circle-xmark' : 'fa-list-check'}`}></i>
-              <span>{isReduction ? 'Reduction Queue' : 'Live Accumulator'}</span>
+              <span>စစ်ပြီးအကွက်များ</span>
             </h3>
           </div>
           <div className="p-4 max-h-[480px] overflow-y-auto custom-scrollbar space-y-2">
@@ -355,12 +355,12 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl border border-slate-200 dark:border-slate-800 animate-fade-in">
-            <div className={`w-20 h-20 bg-${accentColorClass}-100 dark:bg-${accentColorClass}-900/30 rounded-full flex items-center justify-center mx-auto mb-6`}>
-              <i className={`fa-solid ${isReduction ? 'fa-minus-square' : 'fa-check-double'} text-3xl text-${accentColorClass}-600`}></i>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+            <div className={`w-16 h-16 bg-${accentColorClass}-100 dark:bg-${accentColorClass}-900/30 rounded-full flex items-center justify-center mx-auto mb-5`}>
+              <i className={`fa-solid ${isReduction ? 'fa-minus-square' : 'fa-check-double'} text-2xl text-${accentColorClass}-600`}></i>
             </div>
-            <h3 className="text-2xl font-black mb-4 text-slate-900 dark:text-white">
-              {isReduction ? 'Confirm Reductions?' : 'Finalize Batch?'}
+            <h3 className="text-xl font-black mb-3 text-slate-900 dark:text-white uppercase">
+              {isReduction ? 'နှုတ်မည်?' : 'တင်မည်?'}
             </h3>
             <div className="mb-8 space-y-2">
               <p className="text-sm text-slate-500 font-medium">Are you sure you want to process this batch of <b>{parsedBetsInfo.length}</b> items?</p>
@@ -368,16 +368,16 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
                 Total: {isReduction ? '-' : ''}{totalSum.toLocaleString()}
               </div>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
               <button 
                 onClick={handleConfirmProcess}
-                className={`py-5 bg-${accentColorClass}-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-${accentColorClass}-600/30 hover:bg-${accentColorClass}-500 transition-all active:scale-95`}
+                className={`py-3.5 bg-${accentColorClass}-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-${accentColorClass}-600/30 hover:bg-${accentColorClass}-500 transition-all active:scale-95`}
               >
                 Yes, Confirm
               </button>
               <button 
                 onClick={() => setShowConfirmModal(false)} 
-                className="py-5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-sm transition-all hover:bg-slate-200"
+                className="py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-xs transition-all hover:bg-slate-200"
               >
                 Cancel
               </button>

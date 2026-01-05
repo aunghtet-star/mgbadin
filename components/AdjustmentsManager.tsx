@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Bet } from '../types';
 
@@ -59,7 +60,7 @@ const AdjustmentsManager: React.FC<AdjustmentsManagerProps> = ({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-6 flex items-center gap-2">
               <i className="fa-solid fa-plus-circle text-indigo-600"></i>
-              Add Adjust Amount
+              3OVA ပြင်ဆင်ရန်
             </h3>
             <form onSubmit={handleAdd} className="space-y-4">
               <div>

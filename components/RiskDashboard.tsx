@@ -169,7 +169,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <i className="fa-solid fa-grid-horizontal text-indigo-600"></i>
-          <span>3D OVERVIEW (10X10 GRID)</span>
+          <span>3 ချပ်ကြည့်ရန်</span>
         </h3>
 
         <div className="flex flex-wrap gap-2 w-full md:w-auto">

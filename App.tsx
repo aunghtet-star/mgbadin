@@ -15,7 +15,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('phases');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    return (localStorage.getItem('theme') as 'dark' | 'light') || 'dark';
+    return (localStorage.getItem('theme') as 'dark' | 'light') || 'light';
   });
   
   const [activePhase, setActivePhase] = useState<GamePhase | null>(() => {
@@ -327,20 +327,22 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: 'entry', label: 'ထိုးမည်', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'reduction', label: 'လျှော့မည်', icon: 'fa-minus-circle', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'adjustments', label: 'Adjust Amount', icon: 'fa-calculator', roles: ['ADMIN'] },
+    { id: 'reduction', label: 'တင်ပြီးသားအကွက် ပြန်နှုတ်ရန်', icon: 'fa-minus-circle', roles: ['ADMIN', 'COLLECTOR'] },
+    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-calculator', roles: ['ADMIN'] },
     { id: 'history', label: 'My History', icon: 'fa-history', roles: ['COLLECTOR'] },
-    { id: 'risk', label: '3D Overview', icon: 'fa-chart-line', roles: ['ADMIN'] },
-    { id: 'excess', label: '3D ကျွံ', icon: 'fa-fire-alt', roles: ['ADMIN'] },
-    { id: 'phases', label: 'အပတ်စဥ်', icon: 'fa-calendar-days', roles: ['ADMIN'] },
+    { id: 'risk', label: '3 ချပ်ကြည့်ရန်', icon: 'fa-chart-line', roles: ['ADMIN'] },
+    { id: 'excess', label: '3 ကျွံများကြည့်ရန်', icon: 'fa-fire-alt', roles: ['ADMIN'] },
+    { id: 'phases', label: '3 ချပ်အသစ်လုပ်ရန်', icon: 'fa-calendar-days', roles: ['ADMIN'] },
   ].filter(item => item.roles.includes(currentUser.role));
+
+  const appDisplayName = `MgBaDin (${currentUser.role === 'ADMIN' ? 'Admin' : 'User'})`;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
       <nav className="hidden md:flex w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col p-4 print:hidden">
         <div className="mb-10 px-2 flex items-center space-x-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl font-bold text-white shadow-lg">MB</div>
-          <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">MgBaDin</span>
+          <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white truncate">{appDisplayName}</span>
         </div>
 
         <div className="space-y-2 flex-grow">
@@ -348,10 +350,10 @@ const App: React.FC = () => {
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id as TabType)}
-              className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === item.id ? (item.id === 'reduction' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20') : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
+              className={`w-full flex items-center p-3 rounded-lg transition-all text-left ${activeTab === item.id ? (item.id === 'reduction' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20') : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
             >
               <i className={`fa-solid ${item.icon} w-6`}></i>
-              <span className="ml-3 font-medium">{item.label}</span>
+              <span className="ml-3 font-medium text-sm leading-tight">{item.label}</span>
             </button>
           ))}
         </div>
@@ -391,7 +393,7 @@ const App: React.FC = () => {
             className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === item.id ? (item.id === 'reduction' ? 'text-rose-600' : 'text-indigo-600 dark:text-indigo-400') + ' scale-110' : 'text-slate-400'}`}
           >
             <i className={`fa-solid ${item.icon} text-lg`}></i>
-            <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">{item.label}</span>
+            <span className="text-[8px] font-black uppercase mt-1 tracking-tighter text-center max-w-[60px] leading-tight">{item.label}</span>
           </button>
         ))}
         <button 
@@ -399,12 +401,19 @@ const App: React.FC = () => {
           className="flex flex-col items-center p-2 rounded-xl text-slate-400"
         >
           <i className="fa-solid fa-power-off text-lg"></i>
-          <span className="text-[10px] font-black uppercase mt-1 tracking-tighter">Exit</span>
+          <span className="text-[8px] font-black uppercase mt-1 tracking-tighter">Exit</span>
         </button>
       </nav>
 
       <main className="flex-grow p-4 md:p-6 overflow-y-auto custom-scrollbar print:p-0 mb-20 md:mb-0">
         <div className="animate-fade-in pb-10">
+          <div className="md:hidden mb-6 flex items-center justify-between">
+             <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-sm">MB</div>
+                <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{appDisplayName}</span>
+             </div>
+             <button onClick={toggleTheme} className="text-slate-400"><i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i></button>
+          </div>
           {activeTab === 'entry' && (
             activePhase 
               ? <BulkEntry onNewBets={handleNewBets} readOnly={isReadOnly} variant="entry" />
