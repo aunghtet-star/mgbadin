@@ -1,4 +1,3 @@
-
 /**
  * Generates all unique permutations of a 3-digit string.
  */
@@ -24,31 +23,68 @@ export const getPermutations = (str: string): string[] => {
 
 /**
  * Smart Parser: Handles a wide variety of shorthand notations.
- * Supports: 123-1000, 123R1000, 123 R 1000, 123@1000, 123*1000, 123 1000, etc.
+ * Supports standard: 123-1000, 123R1000
+ * Supports compound: 123R1000-10000 (Direct 123 @ 10000, Others @ 1000)
+ * Supports compound: 123-10000R1000 (Direct 123 @ 10000, Others @ 1000)
  */
 export const parseBulkInput = (input: string): { number: string; amount: number; original: string; isPermutation: boolean }[] => {
   const bets: { number: string; amount: number; original: string; isPermutation: boolean }[] = [];
   
-  /**
-   * REGEX BREAKDOWN:
-   * (\d{3})                -> Capture exactly 3 digits (The number)
-   * \s*                    -> Optional whitespace
-   * (?:                    -> Start non-capturing group for separator logic
-   *   ([Rr])\s*[@=*\.,\/\-\s]? -> OR: Capture 'R' or 'r' (Permutation) followed by optional punctuation/space
-   *   |                      -> OR
-   *   [@=*\.,\/\-\s]         -> Just a single punctuation or space separator (Direct bet)
-   * )
-   * \s*                    -> Optional whitespace
-   * (\d+)                  -> Capture 1 or more digits (The amount)
-   */
-  const regex = /(\d{3})\s*(?:([Rr])\s*[@=*\.,\/\-\s]?|[@=*\.,\/\-\s])\s*(\d+)/g;
-  let match;
+  // Create a working copy of the input that we can mask
+  let workingInput = input;
 
-  while ((match = regex.exec(input)) !== null) {
+  // 1. COMPOUND PATTERN: [Number]R[RemAmount]-[DirAmount] 
+  // Example: 123R1000-10000
+  const compoundRegex1 = /(\d{3})[Rr](\d+)[-=@*](\d+)/g;
+  let match;
+  while ((match = compoundRegex1.exec(workingInput)) !== null) {
     const num = match[1];
-    const isPermutation = !!match[2]; // If group 2 caught R/r
-    const amount = parseInt(match[3], 10);
+    const rAmount = parseInt(match[2], 10);
+    const dAmount = parseInt(match[3], 10);
     const original = match[0];
+
+    // Push direct number with its specific amount
+    bets.push({ number: num, amount: dAmount, original, isPermutation: false });
+    
+    // Push other permutations with the "R" amount
+    const perms = getPermutations(num).filter(p => p !== num);
+    perms.forEach(p => {
+      bets.push({ number: p, amount: rAmount, original, isPermutation: true });
+    });
+
+    // Mask this part of the string so standard regexes don't double-count it
+    workingInput = workingInput.substring(0, match.index) + ' '.repeat(original.length) + workingInput.substring(match.index + original.length);
+  }
+
+  // 2. COMPOUND PATTERN: [Number]-[DirAmount]R[RemAmount]
+  // Example: 123-10000R1000
+  const compoundRegex2 = /(\d{3})[-=@*](\d+)[Rr](\d+)/g;
+  while ((match = compoundRegex2.exec(workingInput)) !== null) {
+    const num = match[1];
+    const dAmount = parseInt(match[2], 10);
+    const rAmount = parseInt(match[3], 10);
+    const original = match[0];
+
+    // Push direct
+    bets.push({ number: num, amount: dAmount, original, isPermutation: false });
+    
+    // Push remaining
+    const perms = getPermutations(num).filter(p => p !== num);
+    perms.forEach(p => {
+      bets.push({ number: p, amount: rAmount, original, isPermutation: true });
+    });
+
+    workingInput = workingInput.substring(0, match.index) + ' '.repeat(original.length) + workingInput.substring(match.index + original.length);
+  }
+
+  // 3. STANDARD PATTERN: 123-1000, 123R1000, etc.
+  // Using a robust regex for common delimiters
+  const standardRegex = /(\d{3})\s*(?:([Rr])\s*[@=*\.,\/\-\s]?|[@=*\.,\/\-\s])\s*(\d+)/g;
+  while ((match = standardRegex.exec(workingInput)) !== null) {
+    const num = match[1];
+    const isPermutation = !!match[2]; 
+    const amount = parseInt(match[3], 10);
+    const original = match[0].trim();
 
     if (isPermutation) {
       const perms = getPermutations(num);
@@ -65,7 +101,6 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
 
 /**
  * Cleaning function for OCR results
- * Updated to preserve characters used as separators in the new syntax.
  */
 export const cleanOcrText = (text: string): string => {
   return text
@@ -73,7 +108,6 @@ export const cleanOcrText = (text: string): string => {
     .replace(/[oO]/g, '0')
     .replace(/[sS]/g, '5')
     .replace(/[bB]/g, '8')
-    // Preserve numbers, R, r, and the set of valid separators: @, =, *, ., ,, /, -, spaces
     .replace(/[^0-9Rr\s\n@=*\.,\/\-]/g, '')
     .replace(/\s+/g, ' ')
     .trim();

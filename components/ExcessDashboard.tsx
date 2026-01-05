@@ -8,325 +8,316 @@ interface ExcessDashboardProps {
   isReadOnly: boolean;
 }
 
+const toVerticalGrid = (data: any[], cols: number) => {
+  const rows = Math.ceil(data.length / cols);
+  const result = new Array(rows * cols).fill(null);
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const srcIndex = c * rows + r;
+      if (srcIndex < data.length) {
+        result[r * cols + c] = data[srcIndex];
+      }
+    }
+  }
+  return result;
+};
+
 const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClearExcess, isReadOnly }) => {
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [manifestPage, setManifestPage] = useState(0);
+  const itemsPerPage = 100;
+
   const [showSlip, setShowSlip] = useState(false);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
-  const [currentSlipPage, setCurrentSlipPage] = useState(0);
-  const itemsPerSlipPage = 100;
+  const [isExporting, setIsExporting] = useState(false);
 
   const excessStats = useMemo(() => {
-    const data: Record<string, { total: number; admin: number; collector: number }> = {};
+    const data: Record<string, number> = {};
     bets.forEach(b => {
-      const num = b.number;
-      if (!data[num]) data[num] = { total: 0, admin: 0, collector: 0 };
-      data[num].total += b.amount;
-      if (b.userRole === 'ADMIN') {
-        data[num].admin += b.amount;
-      } else {
-        data[num].collector += b.amount;
-      }
+      data[b.number] = (data[b.number] || 0) + b.amount;
     });
 
     const results = [];
     for (let i = 0; i < 1000; i++) {
       const numStr = i.toString().padStart(3, '0');
-      const val = data[numStr] || { total: 0, admin: 0, collector: 0 };
+      const total = data[numStr] || 0;
       const limit = limits[numStr] || limits['global'] || 5000;
-      const excess = Math.max(0, val.total - limit);
+      const excess = Math.max(0, total - limit);
 
       if (excess > 0) {
-        results.push({
-          number: numStr,
-          total: val.total,
-          adminTotal: val.admin,
-          collectorTotal: val.collector,
-          limit,
-          excess
-        });
+        results.push({ number: numStr, total, limit, excess });
       }
     }
-    return results.sort((a, b) => b.excess - a.excess);
+    return results.sort((a, b) => a.number.localeCompare(b.number));
   }, [bets, limits]);
-
-  const totalSlipPages = Math.ceil(excessStats.length / itemsPerSlipPage);
-
-  const paginatedExcessStats = useMemo(() => {
-    const start = currentSlipPage * itemsPerSlipPage;
-    return excessStats.slice(start, start + itemsPerSlipPage);
-  }, [excessStats, currentSlipPage]);
-
-  const totalExcessValue = useMemo(() => {
-    return excessStats.reduce((sum, item) => sum + item.excess, 0);
-  }, [excessStats]);
 
   const filteredExcess = useMemo(() => {
     if (!search) return excessStats;
     return excessStats.filter(item => item.number.includes(search));
   }, [excessStats, search]);
 
-  const handleOpenSlip = () => {
-    setCurrentSlipPage(0);
-    setShowSlip(true);
-  };
+  const totalFilteredExcessAmount = useMemo(() => {
+    return filteredExcess.reduce((sum, item) => sum + item.excess, 0);
+  }, [filteredExcess]);
 
-  const executeClear = () => {
-    onClearExcess();
-    setIsConfirmingClear(false);
-  };
+  const totalPages = Math.ceil(filteredExcess.length / itemsPerPage);
+  const activePage = Math.min(currentPage, Math.max(0, totalPages - 1));
 
-  const getIntensityColor = (excess: number) => {
-    if (excess > 50000) return 'bg-rose-50 border-rose-200 dark:bg-rose-900/20 dark:border-rose-800';
-    if (excess > 10000) return 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800';
-    if (excess > 5000) return 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800';
-    return 'bg-slate-50 border-slate-200 dark:bg-slate-800/50 dark:border-slate-700';
-  };
+  const paginatedExcess = useMemo(() => {
+    const start = activePage * itemsPerPage;
+    return filteredExcess.slice(start, start + itemsPerPage);
+  }, [filteredExcess, activePage]);
 
-  const getTextColor = (excess: number) => {
-    if (excess > 50000) return 'text-rose-600 dark:text-rose-400';
-    if (excess > 10000) return 'text-orange-600 dark:text-orange-400';
-    if (excess > 5000) return 'text-amber-600 dark:text-amber-400';
-    return 'text-slate-900 dark:text-white';
+  // Manifest Pagination
+  const totalManifestPages = Math.ceil(excessStats.length / itemsPerPage);
+  const activeManifestPage = Math.min(manifestPage, Math.max(0, totalManifestPages - 1));
+  const paginatedManifestStats = useMemo(() => {
+    const start = activeManifestPage * itemsPerPage;
+    return excessStats.slice(start, start + itemsPerPage);
+  }, [excessStats, activeManifestPage]);
+
+  // UI Grids
+  const colsCount = 10;
+  const verticalExcessUI = useMemo(() => toVerticalGrid(paginatedExcess, colsCount), [paginatedExcess]);
+  const verticalManifestUI = useMemo(() => toVerticalGrid(paginatedManifestStats, colsCount), [paginatedManifestStats]);
+  
+  // Full Excess Grid for PDF (Vertical Sorting)
+  const verticalFullExcessGrid = useMemo(() => toVerticalGrid(excessStats, colsCount), [excessStats]);
+
+  const handleExportPDF = async () => {
+    const element = document.getElementById('full-excess-export-manifest');
+    const html2pdfLib = (window as any).html2pdf;
+    if (!element || !html2pdfLib) return;
+    
+    setIsExporting(true);
+    const opt = {
+      margin:       [5, 5, 5, 5],
+      filename:     `3D_Excess_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true , backgroundColor: '#ffffff'},
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    try {
+      await html2pdfLib().set(opt).from(element).save();
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Custom Confirmation Modal */}
-      {isConfirmingClear && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-scale-in text-center">
-            <div className="w-16 h-16 bg-rose-100 dark:bg-rose-900/30 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+      {/* Hidden Print Template - Standardized with RiskDashboard style */}
+      <div style={{ position: 'fixed', top: 0, left: '-10000mm', width: '297mm', pointerEvents: 'none' }} aria-hidden="true">
+        <div id="full-excess-export-manifest" style={{ width: '287mm', padding: '10mm', backgroundColor: '#ffffff', color: '#000000' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase' }}>MgBaDin 3D Excess Report</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '1px', border: '1px solid black', backgroundColor: '#000' }}>
+            {verticalFullExcessGrid.map((item, idx) => (
+              <div key={item?.number || idx} style={{ 
+                backgroundColor: '#fff', 
+                color: '#000',
+                padding: '2px',
+                textAlign: 'left',
+                fontSize: '11px',
+                fontWeight: '700',
+                border: '0.5px solid #000',
+                whiteSpace: 'nowrap'
+              }}>
+                {item ? `${item.number} - ${item.excess.toLocaleString()}` : ''}
+              </div>
+            ))}
+          </div>
+           <div style={{ display: 'flex', justifyContent: 'end', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', marginTop: '15px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: '18px', fontWeight: '900' }}>TOTAL EXCESS : {excessStats.reduce((a, b) => a + b.excess, 0).toLocaleString()}</p>
+              <p style={{ fontSize: '10px', fontWeight: '700' }}>Generated on {new Date().toLocaleString()}</p>
             </div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white mb-4">Clear All Excess?</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 font-medium">
-              This will automatically apply reduction entries for all {excessStats.length} numbers currently over limit.
-            </p>
-            <div className="space-y-3">
-              <button 
-                onClick={executeClear}
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-600/20 transition-all"
-              >
-                Yes, Clear Board
-              </button>
-              <button 
-                onClick={() => setIsConfirmingClear(false)}
-                className="w-full py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black transition-all hover:bg-slate-200"
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Analytics Header */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Total Over-Limit Value</p>
-          <div className="flex items-center space-x-3">
-             <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center text-rose-600">
-               <i className="fa-solid fa-fire-flame-curved text-xl"></i>
-             </div>
-             <p className="text-3xl font-black text-rose-600 dark:text-rose-500 leading-none">
-               {totalExcessValue.toLocaleString()}
-             </p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p className="text-[10px] uppercase font-black text-slate-500 mb-1">Hot Numbers Count</p>
+          <p className="text-3xl font-black">{excessStats.length}</p>
         </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-          <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Over-Limit Hits</p>
-          <div className="flex items-center space-x-3">
-             <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600">
-               <i className="fa-solid fa-triangle-exclamation text-xl"></i>
-             </div>
-             <p className="text-3xl font-black text-slate-900 dark:text-white leading-none">
-               {excessStats.length}
-             </p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-center space-y-3">
+        <div className="flex gap-2 lg:col-span-2">
           <button 
-            onClick={handleOpenSlip}
-            disabled={excessStats.length === 0 || isReadOnly}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-2"
+            onClick={() => setShowSlip(true)}
+            className="flex-grow py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
           >
-            <i className="fa-solid fa-file-invoice"></i>
-            ကြည့်မည်
+            3 ကျွံ ကြည့်မည်
           </button>
           <button 
-            onClick={() => setIsConfirmingClear(true)} 
+            onClick={() => setIsConfirmingClear(true)}
             disabled={excessStats.length === 0 || isReadOnly}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
+            className="flex-grow py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20 active:scale-95 disabled:opacity-30"
           >
-            <i className="fa-solid fa-check-double"></i>
-            Clear Board
+            3 ကျွံဖျက်မည်
           </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+          <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+            <i className="fa-solid fa-fire text-rose-500"></i>
+            <span>3 ကျွံ Overview</span>
+          </h3>
+          
+          <div className="relative w-full md:w-80">
+             <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+             <input 
+               type="text" placeholder="Search hot numbers..." value={search}
+               onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
+               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500"
+             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-10 gap-2 min-h-[500px]">
+          {verticalExcessUI.map((item, idx) => {
+            if (!item) return <div key={`empty-${idx}`} className="h-[64px]"></div>;
+            return (
+              <div 
+                key={item.number}
+                className="flex items-center justify-start px-2 text-dark rounded-lg py-4 font-black shadow-md transform transition-all hover:scale-110 h-full border border-slate-200 dark:border-slate-800"
+              >
+                <div style={{ fontSize: '17px' }} className="font-black leading-none truncate whitespace-nowrap tracking-tighter">
+                  {item.number} - {item.excess.toLocaleString()}
+                </div>
+              </div>
+            );
+          })}
+          {filteredExcess.length === 0 && (
+            <div className="col-span-full py-20 text-center text-slate-400 font-black uppercase tracking-widest opacity-20">
+              ကျွံမရှိပါ
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center justify-between mt-10 gap-4 bg-rose-50 dark:bg-rose-950/20 p-4 rounded-3xl border border-rose-100 dark:border-rose-900/50 shadow-sm">
+          <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-2xl items-center space-x-3 shadow-sm border border-slate-200 dark:border-slate-800">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+              disabled={activePage === 0}
+              className="w-10 h-10 flex items-center justify-center text-[14px] font-black uppercase disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all active:scale-95"
+            >
+              <i className="fa-solid fa-chevron-left"></i>
+            </button>
+            <div className="px-4 flex flex-col items-center">
+              <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Page</span>
+              <span className="text-sm font-black text-rose-600 leading-none">
+                {activePage + 1} / {Math.max(1, totalPages)}
+              </span>
+            </div>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+              disabled={activePage >= totalPages - 1}
+              className="w-10 h-10 flex items-center justify-center text-[14px] font-black uppercase disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all active:scale-95"
+            >
+              <i className="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase text-rose-400 block mb-1 leading-none tracking-widest">Current Page Excess</span>
+            <span className="text-2xl font-black text-rose-600 leading-none">
+              {totalFilteredExcessAmount.toLocaleString()}
+            </span>
+          </div>
         </div>
       </div>
 
       {showSlip && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/98 backdrop-blur-2xl flex items-center justify-center p-0 md:p-6 overflow-hidden">
-          <div className="bg-white w-full max-w-[95vw] h-full md:h-[98vh] rounded-none md:rounded-[3rem] overflow-hidden flex flex-col shadow-2xl animate-scale-in">
-             <div className="bg-slate-50 px-10 py-5 flex justify-between items-center border-b border-slate-200 shrink-0 print:hidden">
-                <div className="flex items-center space-x-5">
-                   <div className="bg-black text-white px-4 py-1 rounded-full font-black text-[12px] tracking-widest uppercase">
-                     P{currentSlipPage + 1} / {totalSlipPages}
-                   </div>
-                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em]">
-                     10x10 Excess Grid
-                   </span>
-                </div>
-                <div className="flex items-center space-x-3">
-                   <button onClick={() => window.print()} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 transition-all">
-                      <i className="fa-solid fa-print"></i>
-                   </button>
-                   <button onClick={() => setShowSlip(false)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-200/50 text-slate-400 hover:bg-slate-200 transition-colors">
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-7xl h-[95vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl">
+              <div className="p-6 border-b flex justify-between items-center bg-slate-50 text-slate-900">
+                 <div className="flex flex-col">
+                    <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Excess Manifest View</h2>
+                 </div>
+                 <div className="flex items-center gap-6">
+                    <button 
+                      onClick={handleExportPDF} 
+                      disabled={isExporting}
+                      className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-sm font-black uppercase shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                    >
+                      {isExporting ? 'Generating...' : 'Export Full PDF'}
+                    </button>
+                    <button onClick={() => setShowSlip(false)} className="w-12 h-12 flex items-center justify-center rounded-xl bg-slate-200 hover:bg-slate-300 transition-all">
                       <i className="fa-solid fa-xmark text-lg"></i>
-                   </button>
+                    </button>
+                 </div>
+              </div>
+              <div className="flex-grow overflow-auto p-10 bg-white text-black font-mono custom-scrollbar">
+                {/* 10x10 Paginated Grid in Manifest with 11px font and Vertical Sorting */}
+                <div className="grid grid-cols-10 border-t border-l border-black gap-[1px]">
+                   {verticalManifestUI.map((item, idx) => item ? (
+                     <div 
+                        key={item.number} 
+                        style={{ fontSize: '11px' }}
+                        className="text-dark p-3 font-black text-left border-r border-b border-black"
+                      >
+                       {item.number} - {item.excess.toLocaleString()}
+                     </div>
+                   ) : <div key={`man-ex-empty-${idx}`} className="bg-white border-r border-b border-black"></div>)}
                 </div>
-             </div>
 
-             <div className="flex-grow p-8 md:p-12 bg-white text-black font-mono overflow-y-auto custom-scrollbar flex flex-col" id="banker-slip">
-                <div className="min-h-full flex flex-col">
-                  <div className="flex justify-between items-end border-b-[6px] border-black pb-6 mb-6">
-                     <div>
-                        <h2 className="text-4xl font-black uppercase tracking-tighter leading-none mb-1">3D ကျွံစာရင်း</h2>
-                        <div className="flex gap-4">
-                           <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Page {currentSlipPage + 1} of {totalSlipPages}</span>
-                           <span className="text-[10px] font-black text-slate-400 uppercase">Hash: {Date.now().toString(36).toUpperCase()}</span>
-                        </div>
-                     </div>
-                     <div className="text-right">
-                        <p className="text-lg font-black">{new Date().toLocaleString()}</p>
-                     </div>
-                  </div>
+                <div className="border-b-4 border-black pb-4 mb-8 mt-4 flex justify-between items-end">
+                   <div></div>
+                   <div className="text-right">
+                     <p className="font-black text-3xl leading-none mb-1">Total: {excessStats.reduce((a, b) => a + b.excess, 0).toLocaleString()}</p>
+                     <p className="font-bold text-slate-500">{new Date().toLocaleString()}</p>
+                   </div>
+                </div>
 
-                  <div className="flex-grow">
-                    <div className="grid grid-cols-10 border-t border-l border-black">
-                       {paginatedExcessStats.map(item => (
-                         <div key={item.number} className="flex flex-col items-start justify-center border-r border-b border-black py-1 px-3 min-h-[40px]">
-                            <div className="flex items-center whitespace-nowrap overflow-hidden">
-                              <span className="text-[12px] font-black text-slate-400 leading-none">{item.number}</span>
-                              <span className="text-[12px] font-black text-slate-400 mx-1">-</span>
-                              <span className="text-[12px] font-black leading-none truncate">
-                                {item.excess.toLocaleString()}
-                              </span>
-                            </div>
-                         </div>
-                       ))}
-                       {paginatedExcessStats.length < itemsPerSlipPage && Array.from({ length: itemsPerSlipPage - paginatedExcessStats.length }).map((_, idx) => (
-                         <div key={`empty-${idx}`} className="flex items-center justify-start border-r border-b border-black py-1 px-3 opacity-5 min-h-[40px]">
-                            <span className="text-[12px] font-black text-slate-300 leading-none">--- - 0</span>
-                         </div>
-                       ))}
-                    </div>
-                  </div>
-
-                  <div className="mt-8 border-t-[6px] border-black pt-8 flex justify-between items-end">
-                     <div>
-                        <p className="text-[10px] font-black uppercase opacity-30 mb-1">Total Items</p>
-                        <p className="text-4xl font-black leading-none">{excessStats.length}</p>
-                     </div>
-                     <div className="text-right">
-                        <p className="text-[12px] font-black uppercase opacity-40 mb-2 tracking-[0.2em]">TOTAL EXCESS VOLUME</p>
-                        <div className="bg-black text-white px-8 py-5 rounded-xl inline-block shadow-lg">
-                           <p className="text-6xl font-black tracking-tighter leading-none">
-                             {totalExcessValue.toLocaleString()}
-                           </p>
-                        </div>
-                     </div>
+                {/* Manifest Pagination Controls - Bottom Center */}
+                <div className="flex justify-center mt-4">
+                  <div className="flex bg-white p-1 rounded-xl shadow-inner border border-slate-200 items-center space-x-2">
+                     <button 
+                       onClick={() => setManifestPage(p => Math.max(0, p - 1))} 
+                       disabled={activeManifestPage === 0}
+                       className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-lg disabled:opacity-30" 
+                     >
+                       <i className="fa-solid fa-chevron-left"></i>
+                     </button>
+                     <span className="px-4 text-xs font-black uppercase tracking-widest">Page {activeManifestPage + 1} / {totalManifestPages}</span>
+                     <button 
+                       onClick={() => setManifestPage(p => Math.min(totalManifestPages - 1, p + 1))} 
+                       disabled={activeManifestPage >= totalManifestPages - 1}
+                       className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-lg disabled:opacity-30" 
+                     >
+                       <i className="fa-solid fa-chevron-right"></i>
+                     </button>
                   </div>
                 </div>
-             </div>
-
-             <div className="p-6 bg-slate-50 border-t border-slate-200 shrink-0 flex items-center justify-center space-x-6 print:hidden">
-                <button 
-                  disabled={currentSlipPage === 0}
-                  onClick={() => setCurrentSlipPage(prev => prev - 1)}
-                  className="w-14 h-14 bg-indigo-600 text-white hover:bg-indigo-700 rounded-2xl flex items-center justify-center disabled:opacity-20 shadow-lg shadow-indigo-600/20 transition-all active:scale-90"
-                >
-                  <i className="fa-solid fa-chevron-left text-lg"></i>
-                </button>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">PAGE {currentSlipPage + 1} / {totalSlipPages}</p>
-                <button 
-                  disabled={currentSlipPage >= totalSlipPages - 1}
-                  onClick={() => setCurrentSlipPage(prev => prev + 1)}
-                  className="w-14 h-14 bg-indigo-600 text-white hover:bg-indigo-700 rounded-2xl flex items-center justify-center disabled:opacity-20 shadow-lg shadow-indigo-600/20 transition-all active:scale-90"
-                >
-                  <i className="fa-solid fa-chevron-right text-lg"></i>
-                </button>
-             </div>
-          </div>
+              </div>
+           </div>
         </div>
       )}
 
-      {/* Main Excess Board Design Update */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-8">
-           <div className="flex items-center space-x-3">
-             <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center text-amber-600">
-                <i className="fa-solid fa-bolt"></i>
-             </div>
-             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">
-               3D ကျွံ စာရင်း
-             </h3>
-           </div>
-           <div className="relative">
-             <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-             <input 
-               type="text" 
-               placeholder="Search Number..." 
-               value={search}
-               onChange={(e) => setSearch(e.target.value)}
-               className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-amber-500/20"
-             />
-           </div>
-        </div>
-
-        {filteredExcess.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-            {filteredExcess.map(item => (
-              <div 
-                key={item.number}
-                className={`flex items-center justify-start border rounded-xl py-1 px-4 min-h-[40px] transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer overflow-hidden ${getIntensityColor(item.excess)}`}
+      {isConfirmingClear && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 max-md w-full text-center shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="fa-solid fa-trash-alt text-3xl text-rose-600"></i>
+            </div>
+            <h3 className="text-2xl font-black mb-4 text-slate-900 dark:text-white">Clear All Excess?</h3>
+            <p className="text-sm text-slate-500 mb-10 font-medium">This will automatically generate reduction entries for all {excessStats.length} hot numbers to bring them back to their set limits.</p>
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={() => { onClearExcess(); setIsConfirmingClear(false); }}
+                className="py-5 bg-rose-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-rose-600/30 hover:bg-rose-500 transition-all active:scale-95"
               >
-                <div className="flex items-center whitespace-nowrap">
-                  <span className="text-[14px] font-black text-slate-400 dark:text-slate-500 leading-none">
-                    {item.number}
-                  </span>
-                  <span className="text-[14px] font-black text-slate-400 dark:text-slate-500 mx-1.5">-</span>
-                  <span className={`text-[14px] font-black leading-none truncate ${getTextColor(item.excess)}`}>
-                    {item.excess.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+                Confirm Board Reset
+              </button>
+              <button onClick={() => setIsConfirmingClear(false)} className="py-5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-sm transition-all hover:bg-slate-200">Cancel</button>
+            </div>
           </div>
-        ) : (
-          <div className="py-32 text-center">
-             <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
-                <i className="fa-solid fa-shield-check text-4xl"></i>
-             </div>
-             <h4 className="text-xl font-black text-slate-900 dark:text-white mb-2">Safe Zone</h4>
-             <p className="text-slate-500 text-sm max-w-xs mx-auto font-medium">Risk levels are currently within safe limits.</p>
-          </div>
-        )}
-
-        {/* Strong Pagination for Dashboard */}
-        {filteredExcess.length > 48 && (
-          <div className="mt-8 flex items-center justify-between p-2 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
-            <button className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-20">
-              PREV
-            </button>
-            <span className="text-xs font-black uppercase text-slate-400">Total: {filteredExcess.length} entries</span>
-            <button className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase shadow-lg shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-20">
-              NEXT
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

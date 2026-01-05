@@ -21,7 +21,6 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   const isReduction = variant === 'reduction';
-  const themeColorClass = isReduction ? 'rose' : 'indigo';
   const accentColorClass = isReduction ? 'rose' : 'indigo';
 
   // Sync stream to video element
@@ -62,13 +61,28 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
     return parseBulkInput(text);
   }, [text]);
 
+  // Enhanced grouping logic to handle compound notations properly
   const validationGroups = useMemo(() => {
-    const groups: Record<string, { count: number; amount: number; isPerm: boolean }> = {};
+    const groups: Record<string, { count: number; amount: number; isPerm: boolean; baseNum: string; isCompound: boolean }> = {};
+    
     parsedBetsInfo.forEach(bet => {
       if (!groups[bet.original]) {
-        groups[bet.original] = { count: 0, amount: bet.amount, isPerm: bet.isPermutation };
+        // Detect if it's a compound notation (contains both 'R' and a separator like '-')
+        const isCompound = /[Rr]/.test(bet.original) && /[-=@*]/.test(bet.original);
+        // Extract the base number from the original string
+        const baseMatch = bet.original.match(/^(\d{3})/);
+        const baseNum = baseMatch ? baseMatch[1] : bet.number;
+
+        groups[bet.original] = { 
+          count: 0, 
+          amount: 0, 
+          isPerm: bet.isPermutation,
+          baseNum: baseNum,
+          isCompound: isCompound
+        };
       }
       groups[bet.original].count++;
+      groups[bet.original].amount += bet.amount; // Sum the amounts (e.g. 10,000 + 5*5,000 = 35,000)
     });
     return Object.entries(groups);
   }, [parsedBetsInfo]);
@@ -120,10 +134,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
       const context = canvasRef.current.getContext('2d', { willReadFrequently: true });
       if (context) {
         const video = videoRef.current;
-        
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          throw new Error("Video dimensions not ready.");
-        }
+        if (video.videoWidth === 0) throw new Error("Video not ready.");
 
         const targetWidth = 1440;
         const scale = Math.min(1, targetWidth / video.videoWidth);
@@ -131,7 +142,6 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
         canvasRef.current.height = video.videoHeight * scale;
         
         context.drawImage(video, 0, 0, canvasRef.current.width, canvasRef.current.height);
-        
         const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.9);
         const base64Image = dataUrl.split(',')[1];
         
@@ -141,15 +151,12 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
           const formatted = results.map(r => `${r.number}${r.isPermutation ? 'R' : '-'}${r.amount}`).join('\n');
           setText(prev => prev + (prev ? '\n' : '') + formatted);
           setScanToast({ count: results.length, time: Date.now() });
-          
-          if ('vibrate' in navigator) {
-            navigator.vibrate(50);
-          }
+          if ('vibrate' in navigator) navigator.vibrate(50);
         } else {
-          alert("No clear numbers detected. Try better lighting.");
+          alert("No clear numbers detected.");
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Scanning error:", error);
     } finally {
       setIsScanning(false);
@@ -159,10 +166,9 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
   const startVoiceCapture = () => {
     if (readOnly) return;
     if (!('webkitSpeechRecognition' in window)) {
-      alert("Speech recognition is not supported in this browser.");
+      alert("Speech recognition not supported.");
       return;
     }
-
     const recognition = new (window as any).webkitSpeechRecognition();
     recognition.lang = 'en-US';
     recognition.onstart = () => setIsRecording(true);
@@ -181,13 +187,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
       {showCamera && (
         <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-0 md:p-4">
           <div className="relative w-full h-full md:max-w-2xl md:aspect-[3/4] md:rounded-3xl overflow-hidden border-0 md:border-4 border-slate-800 bg-slate-900 shadow-2xl">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted
-              className={`w-full h-full object-cover transition-opacity duration-500 ${isVideoReady ? 'opacity-100' : 'opacity-0'}`} 
-            />
+            <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover transition-opacity duration-500 ${isVideoReady ? 'opacity-100' : 'opacity-0'}`} />
             
             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center pointer-events-none">
               <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 flex items-center space-x-2">
@@ -221,10 +221,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
                   <div className={`absolute -top-1 -right-1 w-10 h-10 border-t-4 border-r-4 border-${accentColorClass}-500 rounded-tr-xl`}></div>
                   <div className={`absolute -bottom-1 -left-1 w-10 h-10 border-b-4 border-l-4 border-${accentColorClass}-500 rounded-bl-xl`}></div>
                   <div className={`absolute -bottom-1 -right-1 w-10 h-10 border-b-4 border-r-4 border-${accentColorClass}-500 rounded-br-xl`}></div>
-                  
-                  {isScanning && (
-                    <div className={`absolute inset-0 bg-${accentColorClass}-500/10 animate-pulse`}></div>
-                  )}
+                  {isScanning && <div className={`absolute inset-0 bg-${accentColorClass}-500/10 animate-pulse`}></div>}
                   <div className={`absolute inset-x-0 h-1 bg-${accentColorClass}-500/60 shadow-[0_0_20px_rgba(${isReduction ? '225,29,72' : '99,102,241'},1)] ${isScanning ? 'animate-scan-line' : 'top-1/2 opacity-20'}`}></div>
                </div>
             </div>
@@ -236,23 +233,13 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
                  </div>
                  <span className="text-[10px] font-black text-white uppercase mt-2 opacity-60">Finish</span>
                </button>
-
-               <button 
-                 onClick={captureAndScan} 
-                 disabled={isScanning || !isVideoReady}
-                 className="relative group active:scale-95 transition-all"
-               >
+               <button onClick={captureAndScan} disabled={isScanning || !isVideoReady} className="relative group active:scale-95 transition-all">
                  <div className="w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.4)]">
                     <div className={`w-20 h-20 rounded-full border-8 border-slate-900 flex items-center justify-center ${isScanning ? 'animate-pulse' : ''}`}>
-                       {isScanning ? (
-                         <i className={`fa-solid fa-cloud-arrow-up text-${accentColorClass}-600 text-2xl`}></i>
-                       ) : (
-                         <div className={`w-14 h-14 rounded-full bg-${accentColorClass}-600`}></div>
-                       )}
+                       {isScanning ? <i className={`fa-solid fa-cloud-arrow-up text-${accentColorClass}-600 text-2xl`}></i> : <div className={`w-14 h-14 rounded-full bg-${accentColorClass}-600`}></div>}
                     </div>
                  </div>
                </button>
-
                <div className="w-16 h-16 opacity-0 pointer-events-none"></div>
             </div>
           </div>
@@ -287,24 +274,16 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={readOnly}
-              placeholder={isReduction ? "Subtract syntax:&#10;123 500&#10;123R 1000&#10;777@200" : "Syntax examples:&#10;123 R 1000&#10;123@500&#10;123.200&#10;123 1000&#10;123R=2000"}
+              placeholder={isReduction ? "Subtract syntax:&#10;123 500&#10;123R 1000&#10;777@200" : "Examples:&#10;123R1000-10000 (35,000 Total)&#10;123 R 1000 (6,000 Total)&#10;123@500&#10;123.200&#10;123 1000"}
               className={`w-full h-80 md:h-96 bg-transparent p-6 md:p-8 text-2xl md:text-3xl font-mono focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-800 text-slate-900 dark:text-white custom-scrollbar resize-none leading-tight ${isReduction ? 'text-rose-600 dark:text-rose-400' : ''}`}
             />
             
             {!readOnly && (
               <div className="absolute bottom-4 right-4 flex flex-col space-y-3">
-                <button 
-                  onClick={startVoiceCapture}
-                  className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-2xl border-4 border-white dark:border-slate-900 ${isRecording ? 'bg-red-500 animate-pulse text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}
-                  title="Voice Entry"
-                >
+                <button onClick={startVoiceCapture} className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-2xl border-4 border-white dark:border-slate-900 ${isRecording ? 'bg-red-500 animate-pulse text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`} title="Voice Entry">
                   <i className="fa-solid fa-microphone text-2xl"></i>
                 </button>
-                <button 
-                  onClick={startCamera}
-                  className={`w-16 h-16 rounded-2xl bg-${accentColorClass}-600 text-white flex items-center justify-center transition-all shadow-2xl border-4 border-white dark:border-slate-900 hover:scale-105 active:scale-95`}
-                  title="Open Rapid Scanner"
-                >
+                <button onClick={startCamera} className={`w-16 h-16 rounded-2xl bg-${accentColorClass}-600 text-white flex items-center justify-center transition-all shadow-2xl border-4 border-white dark:border-slate-900 hover:scale-105 active:scale-95`} title="Open Rapid Scanner">
                   <i className="fa-solid fa-camera text-2xl"></i>
                 </button>
               </div>
@@ -312,11 +291,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
           </div>
         </div>
 
-        <button 
-          onClick={handleProcess}
-          disabled={!text.trim() || readOnly || parsedBetsInfo.length === 0}
-          className={`w-full py-6 bg-${accentColorClass}-600 hover:bg-${accentColorClass}-500 disabled:opacity-30 rounded-3xl font-black text-2xl text-white transition-all shadow-xl shadow-${accentColorClass}-600/30 flex items-center justify-center space-x-3`}
-        >
+        <button onClick={handleProcess} disabled={!text.trim() || readOnly || parsedBetsInfo.length === 0} className={`w-full py-6 bg-${accentColorClass}-600 hover:bg-${accentColorClass}-500 disabled:opacity-30 rounded-3xl font-black text-2xl text-white transition-all shadow-xl shadow-${accentColorClass}-600/30 flex items-center justify-center space-x-3`}>
           <i className={`fa-solid ${isReduction ? 'fa-minus-square' : 'fa-check-double'}`}></i>
           <span>{isReduction ? 'Confirm Reductions' : 'Finalize Batch'}</span>
         </button>
@@ -333,21 +308,28 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
           <div className="p-4 max-h-[480px] overflow-y-auto custom-scrollbar space-y-2">
             {validationGroups.length > 0 ? (
               validationGroups.map(([original, data]) => (
-                <div key={original} className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/50 p-4 rounded-2xl flex justify-between items-center animate-fade-in">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center border border-slate-200 dark:border-slate-800 font-mono font-black text-${accentColorClass}-600`}>
-                       {original.split(/[R-r@=*\.,\/\s]/)[0].substring(0,3)}
+                <div key={original} className={`bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/50 p-4 rounded-2xl flex justify-between items-center animate-fade-in ${data.isCompound ? 'border-l-4 border-l-amber-500' : ''}`}>
+                  <div className="flex items-center space-x-3 overflow-hidden">
+                    <div className={`w-10 h-10 shrink-0 bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center border border-slate-200 dark:border-slate-800 font-mono font-black text-${accentColorClass}-600`}>
+                       {data.baseNum}
                     </div>
-                    <div>
-                      <span className="font-mono text-slate-900 dark:text-white font-black text-lg">{original}</span>
+                    <div className="truncate">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono text-slate-900 dark:text-white font-black text-lg truncate">{original}</span>
+                        {data.isCompound && (
+                          <span className="bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Compound</span>
+                        )}
+                      </div>
                       <p className="text-[9px] text-slate-500 uppercase font-black">
-                        {data.isPerm ? `${data.count} items (R)` : 'Direct'}
+                        {data.isCompound 
+                          ? `1 Direct + ${data.count - 1} Perms` 
+                          : (data.isPerm ? `${data.count} items (R)` : 'Direct')}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <span className={`${isReduction ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'} font-mono font-black text-sm`}>
-                      {isReduction ? '-' : 'x'}{data.amount.toLocaleString()}
+                      {isReduction ? '-' : ''}{data.amount.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -365,25 +347,10 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
       </div>
       
       <style>{`
-        @keyframes scan {
-          0% { top: 0; }
-          50% { top: 100%; }
-          100% { top: 0; }
-        }
-        .animate-scan-line {
-          position: absolute;
-          width: 100%;
-          height: 2px;
-          animation: scan 3s linear infinite;
-        }
-        @keyframes bounce-in {
-          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-          70% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
-          100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-        .animate-bounce-in {
-          animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
+        @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+        .animate-scan-line { position: absolute; width: 100%; height: 2px; animation: scan 3s linear infinite; }
+        @keyframes bounce-in { 0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; } 70% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+        .animate-bounce-in { animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}</style>
     </div>
   );

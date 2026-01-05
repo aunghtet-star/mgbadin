@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, GamePhase, Bet, LedgerEntry } from './types';
 import BulkEntry from './components/BulkEntry';
@@ -20,6 +21,15 @@ const App: React.FC = () => {
   const [activePhase, setActivePhase] = useState<GamePhase | null>(() => {
     const saved = localStorage.getItem('banker_active_phase');
     try { return saved ? JSON.parse(saved) : null; } catch { return null; }
+  });
+
+  const [phases, setPhases] = useState<GamePhase[]>(() => {
+    const saved = localStorage.getItem('banker_all_phases');
+    try { 
+      return saved ? JSON.parse(saved) : []; 
+    } catch { 
+      return []; 
+    }
   });
   
   const [allBets, setAllBets] = useState<Bet[]>(() => {
@@ -53,6 +63,10 @@ const App: React.FC = () => {
   }, [activePhase]);
 
   useEffect(() => {
+    localStorage.setItem('banker_all_phases', JSON.stringify(phases));
+  }, [phases]);
+
+  useEffect(() => {
     localStorage.setItem('banker_all_bets', JSON.stringify(allBets));
   }, [allBets]);
 
@@ -78,25 +92,51 @@ const App: React.FC = () => {
     localStorage.removeItem('banker_session');
   };
 
-  const handleSelectPhase = (phaseName: string) => {
-    if (!phaseName) {
+  const handleAddPhase = (name: string) => {
+    if (phases.some(p => p.name === name)) {
+      alert("A phase with this name already exists.");
+      return;
+    }
+    const newPhase: GamePhase = {
+      id: name,
+      name,
+      active: true,
+      startDate: new Date().toISOString(),
+      endDate: null,
+      totalBets: 0,
+      totalVolume: 0
+    };
+    setPhases(prev => [newPhase, ...prev]);
+  };
+
+  const handleDeletePhase = (phaseId: string) => {
+    const phaseBets = allBets.filter(b => b.phaseId === phaseId);
+    if (phaseBets.length > 0) {
+      alert("Cannot delete a phase that contains bets. Void all bets first.");
+      return;
+    }
+    setPhases(prev => prev.filter(p => p.id !== phaseId));
+    if (activePhase?.id === phaseId) setActivePhase(null);
+  };
+
+  const handleSelectPhase = (phaseId: string) => {
+    if (!phaseId) {
       setActivePhase(null);
       return;
     }
-    const phaseBets = allBets.filter(b => b.phaseId === phaseName);
+    const targetPhase = phases.find(p => p.id === phaseId);
+    if (!targetPhase) return;
+
+    const phaseBets = allBets.filter(b => b.phaseId === phaseId);
     const totalVolume = phaseBets.reduce((sum, b) => sum + b.amount, 0);
     
-    const existingPhase: GamePhase = {
-      id: phaseName,
-      name: phaseName,
-      active: !ledger.some(l => l.phaseId === phaseName),
-      startDate: new Date().toISOString(),
-      endDate: null,
+    const updatedPhase: GamePhase = {
+      ...targetPhase,
       totalBets: phaseBets.length,
       totalVolume: totalVolume
     };
 
-    setActivePhase(existingPhase);
+    setActivePhase(updatedPhase);
     if (currentUser?.role === 'ADMIN') {
       setActiveTab('risk');
     } else {
@@ -200,8 +240,8 @@ const App: React.FC = () => {
       phaseId: activePhase.id,
       userId: currentUser.id,
       userRole: currentUser.role,
-      number: 'ADJ', // Reserved code for adjustments
-      amount: Math.abs(amount), // Force positive
+      number: 'ADJ', 
+      amount: Math.abs(amount), 
       timestamp: new Date().toISOString()
     };
 
@@ -343,7 +383,6 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Mobile Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-6 py-2 pb-safe flex justify-between items-center print:hidden">
         {navItems.map((item) => (
           <button 
@@ -364,89 +403,21 @@ const App: React.FC = () => {
         </button>
       </nav>
 
-      <header className="md:hidden sticky top-0 z-40 bg-white dark:bg-slate-950 px-5 py-4 flex justify-between items-center border-b border-slate-100 dark:border-slate-900">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-lg">MB</div>
-          <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white uppercase">MgBaDin</span>
-        </div>
-        <button 
-          onClick={toggleTheme}
-          className="w-10 h-10 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center text-slate-500"
-        >
-          <i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i>
-        </button>
-      </header>
-
       <main className="flex-grow p-4 md:p-6 overflow-y-auto custom-scrollbar print:p-0 mb-20 md:mb-0">
-        <header className="mb-6 hidden md:flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-              {activeTab === 'entry' && 'ထိုးမည်'}
-              {activeTab === 'reduction' && 'လျှော့မည်'}
-              {activeTab === 'adjustments' && 'Adjust Amount'}
-              {activeTab === 'risk' && '3D Overview'}
-              {activeTab === 'excess' && '3D ကျွံ စာရင်း'}
-              {activeTab === 'phases' && 'အပတ်စဥ် စီမံခန့်ခွဲမှု'}
-              {activeTab === 'history' && 'Transaction History'}
-            </h1>
-            <div className="flex items-center space-x-2 mt-1">
-              <p className="text-slate-500 text-sm">Active:</p>
-              {activePhase ? (
-                <div className="flex items-center space-x-3">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-black">{activePhase.name}</span>
-                  {isReadOnly && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-500 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 font-black uppercase">
-                      Settled
-                    </span>
-                  )}
-                  {currentUser.role === 'ADMIN' && (
-                    <button
-                      onClick={() => {
-                        setActivePhase(null);
-                        setActiveTab('phases');
-                      }}
-                      className="flex items-center space-x-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700 transition-all text-[10px] font-black uppercase tracking-wider"
-                    >
-                      <i className="fa-solid fa-right-left"></i>
-                      <span>Switch Phase</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <span className="text-slate-400 italic text-sm">No phase selected</span>
-              )}
-            </div>
-          </div>
-
-          {activePhase && currentUser.role === 'ADMIN' && (
-            <div className="flex space-x-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-lg shadow-sm">
-                <p className="text-[10px] text-slate-500 uppercase font-black">Total</p>
-                <p className={`text-lg font-bold ${activePhase.totalVolume >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {activePhase.totalVolume.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          )}
-        </header>
-
         <div className="animate-fade-in pb-10">
           {activeTab === 'entry' && (
             activePhase 
               ? <BulkEntry onNewBets={handleNewBets} readOnly={isReadOnly} variant="entry" />
-              : <div className="text-center py-20 md:py-32 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <i className="fa-solid fa-calendar-xmark text-6xl text-slate-300 dark:text-slate-800 mb-6 block"></i>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-400 dark:text-slate-600">Please select an active phase</h3>
+              : <div className="text-center py-20 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
                   <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">Go to Phase Management</button>
                 </div>
           )}
           {activeTab === 'reduction' && (
             activePhase 
               ? <BulkEntry onNewBets={handleBulkReduction} readOnly={isReadOnly} variant="reduction" />
-              : <div className="text-center py-20 md:py-32 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <i className="fa-solid fa-minus-circle text-6xl text-slate-300 dark:text-slate-800 mb-6 block"></i>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-400 dark:text-slate-600">Please select an active phase</h3>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-rose-600 hover:underline font-bold">Go to Phase Management</button>
+              : <div className="text-center py-20 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                  <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
                 </div>
           )}
           {activeTab === 'adjustments' && currentUser.role === 'ADMIN' && (
@@ -458,10 +429,7 @@ const App: React.FC = () => {
                   onUpdateAdjustment={handleUpdateBetAmount}
                   isReadOnly={isReadOnly}
                 />
-              : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                  <p className="text-slate-400 font-bold">Select a phase to manage adjustments.</p>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Select Phase</button>
-                </div>
+              : <div className="text-center py-20">Select a phase.</div>
           )}
           {activeTab === 'risk' && currentUser.role === 'ADMIN' && (
             activePhase 
@@ -474,10 +442,7 @@ const App: React.FC = () => {
                   onApplyReduction={handleBulkReduction as any}
                   isReadOnly={isReadOnly}
                 />
-              : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                  <p className="text-slate-400 font-bold">Select a phase to view 3D overview.</p>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Select Phase</button>
-                </div>
+              : <div className="text-center py-20">Select a phase.</div>
           )}
           {activeTab === 'excess' && currentUser.role === 'ADMIN' && (
             activePhase 
@@ -487,16 +452,15 @@ const App: React.FC = () => {
                   onClearExcess={handleClearExcess}
                   isReadOnly={isReadOnly}
                 />
-              : <div className="text-center py-20 bg-white dark:bg-slate-900/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                  <p className="text-slate-400 font-bold">Select a phase to view Excess Risk.</p>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 px-6 py-2 bg-indigo-600 rounded-lg text-xs font-black uppercase text-white shadow-lg">Select Phase</button>
-                </div>
+              : <div className="text-center py-20">Select a phase.</div>
           )}
           {activeTab === 'phases' && currentUser.role === 'ADMIN' && (
             <PhaseManager 
-              key={activePhase?.id || 'idle'} 
+              phases={phases}
               currentPhase={activePhase} 
               ledger={ledger} 
+              onAddPhase={handleAddPhase}
+              onDeletePhase={handleDeletePhase}
               onClosePhase={closeActivePhase} 
               onSelectPhase={handleSelectPhase}
               bets={allBets}
