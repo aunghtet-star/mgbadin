@@ -15,6 +15,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
   const [isScanning, setIsScanning] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [scanToast, setScanToast] = useState<{ count: number; time: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,7 +83,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
         };
       }
       groups[bet.original].count++;
-      groups[bet.original].amount += bet.amount; // Sum the amounts (e.g. 10,000 + 5*5,000 = 35,000)
+      groups[bet.original].amount += bet.amount; // Sum the amounts
     });
     return Object.entries(groups);
   }, [parsedBetsInfo]);
@@ -91,11 +92,16 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
     return parsedBetsInfo.reduce((acc, curr) => acc + curr.amount, 0);
   }, [parsedBetsInfo]);
 
-  const handleProcess = () => {
-    if (readOnly) return;
+  const handleProcessClick = () => {
+    if (readOnly || parsedBetsInfo.length === 0) return;
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmProcess = () => {
     if (parsedBetsInfo.length > 0) {
       onNewBets(parsedBetsInfo.map(b => ({ number: b.number, amount: b.amount })));
       setText('');
+      setShowConfirmModal(false);
     }
   };
 
@@ -291,7 +297,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
           </div>
         </div>
 
-        <button onClick={handleProcess} disabled={!text.trim() || readOnly || parsedBetsInfo.length === 0} className={`w-full py-6 bg-${accentColorClass}-600 hover:bg-${accentColorClass}-500 disabled:opacity-30 rounded-3xl font-black text-2xl text-white transition-all shadow-xl shadow-${accentColorClass}-600/30 flex items-center justify-center space-x-3`}>
+        <button onClick={handleProcessClick} disabled={!text.trim() || readOnly || parsedBetsInfo.length === 0} className={`w-full py-6 bg-${accentColorClass}-600 hover:bg-${accentColorClass}-500 disabled:opacity-30 rounded-3xl font-black text-2xl text-white transition-all shadow-xl shadow-${accentColorClass}-600/30 flex items-center justify-center space-x-3`}>
           <i className={`fa-solid ${isReduction ? 'fa-minus-square' : 'fa-check-double'}`}></i>
           <span>{isReduction ? 'Confirm Reductions' : 'Finalize Batch'}</span>
         </button>
@@ -345,6 +351,40 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-10 max-w-sm w-full text-center shadow-2xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+            <div className={`w-20 h-20 bg-${accentColorClass}-100 dark:bg-${accentColorClass}-900/30 rounded-full flex items-center justify-center mx-auto mb-6`}>
+              <i className={`fa-solid ${isReduction ? 'fa-minus-square' : 'fa-check-double'} text-3xl text-${accentColorClass}-600`}></i>
+            </div>
+            <h3 className="text-2xl font-black mb-4 text-slate-900 dark:text-white">
+              {isReduction ? 'Confirm Reductions?' : 'Finalize Batch?'}
+            </h3>
+            <div className="mb-8 space-y-2">
+              <p className="text-sm text-slate-500 font-medium">Are you sure you want to process this batch of <b>{parsedBetsInfo.length}</b> items?</p>
+              <div className={`text-xl font-black text-${accentColorClass}-600`}>
+                Total: {isReduction ? '-' : ''}{totalSum.toLocaleString()}
+              </div>
+            </div>
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={handleConfirmProcess}
+                className={`py-5 bg-${accentColorClass}-600 text-white rounded-2xl font-black uppercase text-sm shadow-xl shadow-${accentColorClass}-600/30 hover:bg-${accentColorClass}-500 transition-all active:scale-95`}
+              >
+                Yes, Confirm
+              </button>
+              <button 
+                onClick={() => setShowConfirmModal(false)} 
+                className="py-5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-sm transition-all hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <style>{`
         @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }

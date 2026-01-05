@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Bet } from '../types';
 
@@ -11,9 +12,6 @@ interface RiskDashboardProps {
   isReadOnly: boolean;
 }
 
-/**
- * Reshapes a flat array into a column-major (vertical) grid.
- */
 const toVerticalGrid = (data: any[], cols: number) => {
   const rows = Math.ceil(data.length / cols);
   const result = new Array(rows * cols).fill(null);
@@ -34,18 +32,15 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [manifestPage, setManifestPage] = useState(0);
-  const itemsPerPage = 100; // 10x10 grid
+  const itemsPerPage = 100;
   
   const [showManifest, setShowManifest] = useState(false);
   const [showBrakeModal, setShowBrakeModal] = useState(false);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
   const [reductionInput, setReductionInput] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
 
-  // Brake Management State
-  const [brakeSearch, setBrakeSearch] = useState('');
-  const [tempLimitValue, setTempLimitValue] = useState('');
-  
   const stats = useMemo(() => {
     const data: Record<string, number> = {};
     for(let i=0; i<1000; i++) {
@@ -58,13 +53,14 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       }
     });
     
+    const globalLimit = limits['global'] || 5000;
+
     return Object.entries(data).map(([number, total]) => {
-      const limit = limits[number] || limits['global'] || 5000;
       return {
         number,
         total,
-        limit,
-        excess: Math.max(0, total - limit)
+        limit: globalLimit,
+        excess: Math.max(0, total - globalLimit)
       };
     }).sort((a, b) => a.number.localeCompare(b.number));
   }, [bets, limits]);
@@ -88,7 +84,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
 
   // Manifest Pagination
   const totalManifestPages = Math.ceil(stats.length / itemsPerPage);
-  const activeManifestPage = Math.min(manifestPage, totalManifestPages - 1);
+  const activeManifestPage = Math.min(manifestPage, Math.max(0, totalManifestPages - 1));
   const paginatedManifestStats = useMemo(() => {
     const start = activeManifestPage * itemsPerPage;
     return stats.slice(start, start + itemsPerPage);
@@ -113,6 +109,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
     if (!element || !html2pdfLib) return;
     
     setIsExporting(true);
+    setShowExportConfirm(false);
     const opt = {
       margin:       [5, 5, 5, 5],
       filename:     `3D_Risk_Report_${new Date().toISOString().split('T')[0]}.pdf`,
@@ -127,18 +124,6 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
     } finally {
       setIsExporting(false);
     }
-  };
-
-  const handleSetBrake = () => {
-    if (!tempLimitValue) return;
-    const num = brakeSearch.padStart(3, '0');
-    if (brakeSearch.toLowerCase() === 'global' || brakeSearch === '') {
-      onUpdateLimit('global', parseInt(tempLimitValue));
-    } else {
-      onUpdateLimit(num, parseInt(tempLimitValue));
-    }
-    setTempLimitValue('');
-    setBrakeSearch('');
   };
 
   return (
@@ -156,8 +141,8 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: '1px', border: '1px solid black', backgroundColor: '#000' }}>
                 {grid.map((item, idx) => (
                   <div key={item?.number || `empty-${idx}`} style={{ 
-                    backgroundColor: item?.total > item?.limit ? '#ef4444' : '#fff', 
-                    color: item?.total > item?.limit ? '#fff' : '#000',
+                    backgroundColor: '#fff', 
+                    color: item?.total > item?.limit ? '#ef4444' : '#000',
                     padding: '2px',
                     textAlign: 'left',
                     fontSize: '11px',
@@ -184,56 +169,54 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <i className="fa-solid fa-grid-horizontal text-indigo-600"></i>
-          <span>3D Overview (10x10 Grid)</span>
+          <span>3D OVERVIEW (10X10 GRID)</span>
         </h3>
 
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <button 
             onClick={() => setShowBrakeModal(true)}
-            className="px-6 py-4 bg-rose-600 text-white rounded-2xl text-xs font-black uppercase flex items-center gap-2 shadow-lg hover:bg-rose-500 transition-all active:scale-95"
+            className="flex-grow md:flex-none px-4 md:px-6 py-3 md:py-4 bg-rose-600 text-white rounded-2xl text-[10px] md:text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg hover:bg-rose-500 transition-all active:scale-95"
           >
-            <i className="fa-solid fa-hand-stop"></i>
-            ဘရိတ်သတ်မှတ်မည်
+            ဘရိတ်
           </button>
-          <div className="relative flex-grow">
+          <div className="relative flex-grow min-w-[120px]">
             <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input
-              type="text" placeholder="Search number..." value={search}
+              type="text" placeholder="Search..." value={search}
               onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
               className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500 h-full"
             />
           </div>
           <button 
             onClick={() => setShowManifest(true)}
-            className="px-6 py-4 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase flex items-center gap-2 shadow-lg"
+            className="flex-grow md:flex-none px-4 md:px-6 py-3 md:py-4 bg-indigo-600 text-white rounded-2xl text-[10px] md:text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg"
           >
             3D ကြည့်မည်
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-10 gap-2 min-h-[450px]">
+      <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2 min-h-[400px]">
         {verticalStatsUI.map((item, idx) => {
-          if (!item) return <div key={`empty-${idx}`} className="h-[56px]"></div>;
-          const isOverLimit = item.total > item.limit;
+          if (!item) return <div key={`empty-${idx}`} className="hidden md:block h-[56px]"></div>;
+          const hasVolume = item.total > 0;
+          const overLimit = item.total > item.limit;
+          
           return (
             <div 
               key={item.number}
               onClick={() => setSelectedNumber(item.number)}
-              className={`flex flex-col items-center justify-center border-2 rounded-xl py-4 px-1 transition-all hover:scale-110 cursor-pointer h-full relative ${
-                isOverLimit 
-                  ? 'bg-red-600 border-red-700 text-white shadow-lg z-10' 
-                  : (item.total > 0 ? 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white shadow-sm' : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-900 text-slate-300 dark:text-slate-800 opacity-60')
+              className={`flex flex-col items-center justify-center border-none rounded-lg py-3 px-1 transition-all hover:scale-105 cursor-pointer h-full relative bg-white dark:bg-slate-950 shadow-sm ${
+                overLimit 
+                  ? 'text-red-600 dark:text-red-500 z-10' 
+                  : hasVolume 
+                    ? 'text-slate-900 dark:text-white' 
+                    : 'text-slate-300 dark:text-slate-800'
               }`}
             >
-              <div style={{ fontSize: '17px' }} className="font-black leading-none truncate whitespace-nowrap tracking-tighter">
-                {item.number} - {item.total > 0 ? item.total.toLocaleString() : '-'}
+              <div style={{ fontSize: '15px' }} className="font-black leading-none truncate whitespace-nowrap tracking-tighter">
+                {item.number} {hasVolume ? `- ${item.total.toLocaleString()}` : '--'}
               </div>
-              {limits[item.number] && (
-                <div className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black px-1 rounded-sm shadow-sm border border-white">
-                  LIMIT
-                </div>
-              )}
             </div>
           );
         })}
@@ -264,31 +247,31 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
            </button>
         </div>
 
-        <div className="flex items-center gap-6">
-           <div className="flex flex-col text-right">
+        <div className="flex items-center gap-4 md:gap-6">
+           <div className="flex flex-col text-center md:text-right">
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Global Brake</span>
             <span className="text-sm font-black text-rose-600 leading-none">
               { (limits['global'] || 5000).toLocaleString() }
             </span>
           </div>
           <div className="h-10 w-px bg-slate-200 dark:bg-slate-800"></div>
-          <div className="flex flex-col">
+          <div className="flex flex-col text-center md:text-right">
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Batch Total</span>
-            <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400 leading-none">
+            <span className="text-xl md:text-2xl font-black text-indigo-600 dark:text-indigo-400 leading-none">
               {totalAmount.toLocaleString()}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Brake Settings Modal */}
+      {/* REFINED: Responsive Brake Settings Modal */}
       {showBrakeModal && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-lg w-full shadow-2xl animate-fade-in border border-slate-200 dark:border-slate-800">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl animate-fade-in border border-slate-200 dark:border-slate-800">
             <div className="flex justify-between items-center mb-6">
-               <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase flex items-center gap-3">
+               <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase flex items-center gap-3">
                  <i className="fa-solid fa-shield-halved text-rose-600"></i>
-                 Brake Settings
+                 Brake Setting
                </h3>
                <button onClick={() => setShowBrakeModal(false)} className="text-slate-400 hover:text-slate-600">
                  <i className="fa-solid fa-circle-xmark text-2xl"></i>
@@ -297,66 +280,23 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
 
             <div className="space-y-6">
               <div className="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-2xl border border-rose-100 dark:border-rose-900/50">
-                <label className="block text-[10px] font-black uppercase text-rose-600 mb-2">Global Brake Limit (Default for all)</label>
+                <label className="block text-[10px] font-black uppercase text-rose-600 mb-2">Global Brake Limit</label>
                 <div className="flex gap-2">
                   <input 
                     type="number" 
                     defaultValue={limits['global'] || 5000}
                     onChange={(e) => onUpdateLimit('global', parseInt(e.target.value) || 0)}
-                    className="flex-grow bg-white dark:bg-slate-950 border border-rose-200 dark:border-rose-900/50 p-4 rounded-xl text-xl font-mono font-black outline-none focus:ring-2 focus:ring-rose-500"
+                    className="flex-grow bg-white dark:bg-slate-950 border border-rose-200 dark:border-rose-900/50 p-3 rounded-xl text-lg font-mono font-black outline-none focus:ring-2 focus:ring-rose-500"
                   />
-                  <div className="w-14 h-14 bg-rose-600 text-white rounded-xl flex items-center justify-center text-xl shadow-lg">
-                    <i className="fa-solid fa-earth-asia"></i>
-                  </div>
                 </div>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-2">Set Specific Number Brake</label>
-                <div className="flex flex-col gap-3">
-                   <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="Number (e.g. 777)"
-                      value={brakeSearch}
-                      onChange={(e) => setBrakeSearch(e.target.value.replace(/\D/g, '').substring(0,3))}
-                      className="w-1/3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl text-xl font-mono font-black outline-none"
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Custom Brake Amount"
-                      value={tempLimitValue}
-                      onChange={(e) => setTempLimitValue(e.target.value)}
-                      className="flex-grow bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl text-xl font-mono font-black outline-none"
-                    />
-                   </div>
-                   <button 
-                     onClick={handleSetBrake}
-                     className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black uppercase text-xs shadow-lg hover:bg-indigo-500 transition-all active:scale-95"
-                   >
-                     Update Specific Brake
-                   </button>
-                </div>
-              </div>
-
-              <div className="max-h-40 overflow-y-auto custom-scrollbar border-t border-slate-100 dark:border-slate-800 pt-4">
-                 <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Active Specific Limits</p>
-                 {Object.entries(limits).filter(([k]) => k !== 'global').length > 0 ? (
-                   <div className="grid grid-cols-2 gap-2">
-                     {Object.entries(limits).filter(([k]) => k !== 'global').map(([num, val]) => (
-                       <div key={num} className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-lg text-xs font-black">
-                         <span className="text-indigo-600">#{num}</span>
-                         <span className="text-slate-900 dark:text-white">{val.toLocaleString()}</span>
-                         <button onClick={() => onUpdateLimit(num, 0)} className="text-rose-500 hover:scale-110">
-                           <i className="fa-solid fa-times"></i>
-                         </button>
-                       </div>
-                     ))}
-                   </div>
-                 ) : (
-                   <p className="text-[10px] italic text-slate-400">No specific limits set.</p>
-                 )}
-              </div>
+              <button 
+                onClick={() => setShowBrakeModal(false)}
+                className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-black uppercase text-xs shadow-lg hover:bg-indigo-500 transition-all active:scale-95"
+              >
+                Close Settings
+              </button>
             </div>
           </div>
         </div>
@@ -365,31 +305,30 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       {showManifest && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
            <div className="bg-white w-full max-w-7xl h-[95vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl">
-              <div className="p-6 border-b flex justify-between items-center bg-slate-50 text-slate-900">
+              <div className="p-4 md:p-6 border-b flex justify-between items-center bg-slate-50 text-slate-900">
                  <div className="flex flex-col">
-                   <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Manifest View</h2>
+                   <h2 className="text-xs md:text-sm font-black uppercase tracking-[0.2em] text-slate-500">Manifest View</h2>
                  </div>
-                 <div className="flex items-center gap-6">
+                 <div className="flex items-center gap-3 md:gap-6">
                     <button 
-                      onClick={handleExportPDF} 
+                      onClick={() => setShowExportConfirm(true)} 
                       disabled={isExporting}
-                      className="px-8 py-3 bg-indigo-600 text-white rounded-xl text-sm font-black uppercase shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
+                      className="px-4 md:px-8 py-2 md:py-3 bg-indigo-600 text-white rounded-xl text-[10px] md:text-sm font-black uppercase shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
                     >
-                      {isExporting ? 'Generating...' : 'Export Full PDF'}
+                      {isExporting ? 'Generating...' : 'Export PDF'}
                     </button>
-                    <button onClick={() => setShowManifest(false)} className="w-12 h-12 flex items-center justify-center rounded-xl bg-slate-200 hover:bg-slate-300 transition-all">
+                    <button onClick={() => setShowManifest(false)} className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-xl bg-slate-200 hover:bg-slate-300 transition-all">
                       <i className="fa-solid fa-xmark text-lg"></i>
                     </button>
                  </div>
               </div>
-              <div className="flex-grow overflow-auto p-10 bg-white text-black font-mono custom-scrollbar">
-                {/* 10x10 Paginated Grid in Manifest with 11px font and Vertical Sorting */}
-                <div className="grid grid-cols-10 border-t border-l border-black gap-[1px]">
+              <div className="flex-grow overflow-auto p-4 md:p-10 bg-white text-black font-mono custom-scrollbar">
+                <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 border-t border-l border-black gap-[1px]">
                    {verticalManifestUI.map((item, idx) => item ? (
                      <div 
                         key={item.number} 
                         style={{ fontSize: '11px' }}
-                        className={`p-3 font-black text-left border-r border-b border-black ${item.total > item.limit ? 'bg-red-600 text-white' : 'bg-white text-black'}`}
+                        className={`p-2 md:p-3 font-black text-left border-r border-b border-black bg-white ${item.total > item.limit ? 'text-red-600' : 'text-black'}`}
                       >
                        {item.number} - {item.total.toLocaleString()}
                      </div>
@@ -399,8 +338,8 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
                 <div className="border-b-4 border-black pb-4 mb-8 mt-4 flex justify-between items-end">
                    <div></div>
                    <div className="text-right">
-                     <p className="font-black text-3xl leading-none mb-1">Total: {stats.reduce((a, b) => a + b.total, 0).toLocaleString()}</p>
-                     <p className="font-bold text-slate-500">{new Date().toLocaleString()}</p>
+                     <p className="font-black text-xl md:text-3xl leading-none mb-1">Total: {stats.reduce((a, b) => a + b.total, 0).toLocaleString()}</p>
+                     <p className="font-bold text-[10px] text-slate-500">{new Date().toLocaleString()}</p>
                    </div>
                 </div>
 
@@ -413,7 +352,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
                      >
                        <i className="fa-solid fa-chevron-left"></i>
                      </button>
-                     <span className="px-4 text-xs font-black uppercase tracking-widest">Page {activeManifestPage + 1} / {totalManifestPages}</span>
+                     <span className="px-2 md:px-4 text-[10px] md:text-xs font-black uppercase tracking-widest">Page {activeManifestPage + 1} / {totalManifestPages}</span>
                      <button 
                        onClick={() => setManifestPage(p => Math.min(totalManifestPages - 1, p + 1))} 
                        disabled={activeManifestPage >= totalManifestPages - 1}
@@ -428,16 +367,38 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
         </div>
       )}
 
+      {/* REFINED: Responsive Export Confirmation */}
+      {showExportConfirm && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-sm w-full text-center shadow-2xl border border-slate-200 dark:border-slate-800 animate-fade-in">
+            <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-5">
+              <i className="fa-solid fa-file-pdf text-2xl text-indigo-600"></i>
+            </div>
+            <h3 className="text-xl font-black mb-3 text-slate-900 dark:text-white">Export Risk PDF?</h3>
+            <p className="text-sm text-slate-500 mb-8 font-medium">Download the full 3D Risk scan report.</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={handleExportPDF}
+                className="py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-600/30 hover:bg-indigo-500 transition-all active:scale-95"
+              >
+                Confirm Export
+              </button>
+              <button onClick={() => setShowExportConfirm(false)} className="py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-xs transition-all hover:bg-slate-200">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedNumber && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-fade-in border border-slate-200 dark:border-slate-800">
-            <h3 className="text-2xl font-black mb-6 text-slate-900 dark:text-white">Reduce #{selectedNumber}</h3>
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl animate-fade-in border border-slate-200 dark:border-slate-800">
+            <h3 className="text-xl font-black mb-6 text-slate-900 dark:text-white uppercase">Reduce #{selectedNumber}</h3>
             <div className="mb-6">
               <label className="block text-[10px] font-black uppercase text-slate-400 mb-2">Subtract Amount</label>
               <input 
                 type="number" value={reductionInput} onChange={(e) => setReductionInput(e.target.value)}
                 placeholder="0"
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl text-2xl font-mono outline-none focus:ring-4 focus:ring-rose-500/20 text-rose-600"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl text-xl font-mono outline-none focus:ring-4 focus:ring-rose-500/20 text-rose-600"
                 autoFocus
               />
             </div>
@@ -450,11 +411,11 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
                   setReductionInput('');
                   setSelectedNumber(null);
                 }}
-                className="py-4 bg-rose-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
+                className="py-3.5 bg-rose-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
               >
                 Apply
               </button>
-              <button onClick={() => setSelectedNumber(null)} className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">Cancel</button>
+              <button onClick={() => setSelectedNumber(null)} className="py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">Cancel</button>
             </div>
           </div>
         </div>
