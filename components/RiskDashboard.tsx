@@ -131,7 +131,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       {/* Hidden Print Template */}
       <div style={{ position: 'fixed', top: 0, left: '-10000mm', width: '297mm', pointerEvents: 'none' }} aria-hidden="true">
         <div id="full-risk-export-manifest" style={{ width: '287mm', padding: '10mm', backgroundColor: '#ffffff', color: '#000000' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase' }}>MgBaDin 3D Risk Full Scan</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: '900', marginBottom: '15px', textTransform: 'uppercase' }}>Ova Full Board</h2>
           
           {verticalFullGridBlocks.map((grid, bIdx) => (
             <div key={bIdx} style={{ marginBottom: '25px', pageBreakInside: 'avoid' }}>
@@ -159,7 +159,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
 
           <div style={{ display: 'flex', justifyContent: 'end', alignItems: 'center', borderBottom: '2px solid black', paddingBottom: '10px', marginTop: '15px' }}>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '18px', fontWeight: '900' }}>GRAND TOTAL : {stats.reduce((a, b) => a + b.total, 0).toLocaleString()}</p>
+              <p style={{ fontSize: '18px', fontWeight: '900' }}>TOTAL : {stats.reduce((a, b) => a + b.total, 0).toLocaleString()}</p>
               <p style={{ fontSize: '10px', fontWeight: '700' }}>Generated on {new Date().toLocaleString()}</p>
             </div>
           </div>

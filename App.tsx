@@ -14,6 +14,7 @@ type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('phases');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'light';
   });
@@ -80,6 +81,7 @@ const App: React.FC = () => {
   }, []);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const toggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -339,10 +341,22 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
-      <nav className="hidden md:flex w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col p-4 print:hidden">
-        <div className="mb-10 px-2 flex items-center space-x-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-xl font-bold text-white shadow-lg">MB</div>
-          <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white truncate">{appDisplayName}</span>
+      {/* Desktop Sidebar */}
+      <nav className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} hidden md:flex bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col p-4 print:hidden transition-all duration-300 relative`}>
+        <button 
+          onClick={toggleSidebar}
+          className="absolute -right-3 top-10 bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors z-10"
+        >
+          <i className={`fa-solid ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'} text-[10px]`}></i>
+        </button>
+
+        <div className={`mb-10 px-2 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} overflow-hidden`}>
+          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex-shrink-0 flex items-center justify-center text-xl font-bold text-white shadow-lg">MB</div>
+          {!isSidebarCollapsed && (
+            <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white truncate animate-fade-in">
+              {appDisplayName}
+            </span>
+          )}
         </div>
 
         <div className="space-y-2 flex-grow">
@@ -350,10 +364,13 @@ const App: React.FC = () => {
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id as TabType)}
-              className={`w-full flex items-center p-3 rounded-lg transition-all text-left ${activeTab === item.id ? (item.id === 'reduction' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20') : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
+              title={isSidebarCollapsed ? item.label : undefined}
+              className={`w-full flex items-center p-3 rounded-lg transition-all text-left group ${activeTab === item.id ? (item.id === 'reduction' ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20') : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500'}`}
             >
-              <i className={`fa-solid ${item.icon} w-6`}></i>
-              <span className="ml-3 font-medium text-sm leading-tight">{item.label}</span>
+              <i className={`fa-solid ${item.icon} ${isSidebarCollapsed ? 'mx-auto' : 'w-6'}`}></i>
+              {!isSidebarCollapsed && (
+                <span className="ml-3 font-medium text-sm leading-tight animate-fade-in">{item.label}</span>
+              )}
             </button>
           ))}
         </div>
@@ -361,30 +378,40 @@ const App: React.FC = () => {
         <div className="mt-auto border-t border-slate-100 dark:border-slate-800 pt-4 px-2 space-y-4">
           <button 
             onClick={toggleTheme}
-            className="w-full flex items-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className={`w-full flex items-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isSidebarCollapsed ? 'justify-center' : ''}`}
           >
-            <i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} w-6`}></i>
-            <span className="ml-3 font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            <i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} ${isSidebarCollapsed ? '' : 'w-6'}`}></i>
+            {!isSidebarCollapsed && (
+              <span className="ml-3 font-medium animate-fade-in">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            )}
           </button>
           
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
+          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'}`}>
+            <div className="w-10 h-10 rounded-full flex-shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
               {currentUser.username.charAt(0).toUpperCase()}
             </div>
-            <div className="text-sm overflow-hidden">
-              <p className="font-semibold truncate text-slate-900 dark:text-white">{currentUser.username}</p>
-              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${currentUser.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'}`}>
-                {currentUser.role === 'ADMIN' ? 'Admin' : 'Collector'}
-              </span>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="text-sm overflow-hidden animate-fade-in">
+                <p className="font-semibold truncate text-slate-900 dark:text-white">{currentUser.username}</p>
+                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${currentUser.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'}`}>
+                  {currentUser.role === 'ADMIN' ? 'Admin' : 'Collector'}
+                </span>
+              </div>
+            )}
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center p-3 rounded-lg text-slate-400 hover:text-red-500 transition-colors">
-            <i className="fa-solid fa-right-from-bracket w-6"></i>
-            <span className="ml-3 font-medium">Logout</span>
+          <button 
+            onClick={handleLogout} 
+            className={`w-full flex items-center p-3 rounded-lg text-slate-400 hover:text-red-500 transition-colors ${isSidebarCollapsed ? 'justify-center' : ''}`}
+          >
+            <i className={`fa-solid fa-right-from-bracket ${isSidebarCollapsed ? '' : 'w-6'}`}></i>
+            {!isSidebarCollapsed && (
+              <span className="ml-3 font-medium animate-fade-in">Logout</span>
+            )}
           </button>
         </div>
       </nav>
 
+      {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-6 py-2 pb-safe flex justify-between items-center print:hidden">
         {navItems.map((item) => (
           <button 
@@ -480,6 +507,15 @@ const App: React.FC = () => {
           )}
         </div>
       </main>
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateX(-10px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.3s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 };
