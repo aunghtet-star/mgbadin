@@ -3,29 +3,46 @@ import React, { useState } from 'react';
 import { User } from '../types';
 
 interface LoginProps {
-  onLogin: (user: User) => void;
+  // Fix: Updated signature to match handleLogin in App.tsx which expects an object with { user, token }
+  onLogin: (data: { user: User; token: string }) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent, roleOverride?: 'ADMIN' | 'COLLECTOR') => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
 
+    // Simulate network delay
     setTimeout(() => {
-      const selectedRole = roleOverride || (username.toLowerCase() === 'admin' ? 'ADMIN' : 'COLLECTOR');
-      const mockUser: User = {
-        id: selectedRole === 'ADMIN' ? 'u-admin' : 'u-coll-1',
-        username: username || (selectedRole === 'ADMIN' ? 'Admin' : 'Collector_01'),
-        role: selectedRole,
-        balance: selectedRole === 'ADMIN' ? 0 : 5000,
-        token: 'mock-jwt-token-' + Date.now()
-      };
+      let selectedRole: 'ADMIN' | 'COLLECTOR' | null = null;
+
+      if (username === 'admin' && password === 'admin123') {
+        selectedRole = 'ADMIN';
+      } else if (username === 'user' && password === 'user123') {
+        selectedRole = 'COLLECTOR';
+      }
+
+      if (selectedRole) {
+        const token = 'mock-jwt-token-' + Date.now();
+        const mockUser: User = {
+          id: selectedRole === 'ADMIN' ? 'u-admin' : 'u-coll-1',
+          username: username,
+          role: selectedRole,
+          balance: selectedRole === 'ADMIN' ? 0 : 5000,
+          token: token
+        };
+        // Fix: Pass an object with user and token properties as expected by App.tsx handleLogin
+        onLogin({ user: mockUser, token: token });
+      } else {
+        setError('Invalid username or password.');
+      }
       
-      onLogin(mockUser);
       setIsLoading(false);
     }, 800);
   };
@@ -46,14 +63,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         <form onSubmit={handleSubmit} className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-8 rounded-2xl shadow-2xl">
           <div className="space-y-6">
+            {error && (
+              <div className="bg-rose-500/10 border border-rose-500/50 p-3 rounded-lg text-rose-500 text-xs font-bold animate-fade-in">
+                <i className="fa-solid fa-circle-exclamation mr-2"></i>
+                {error}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-2">Username</label>
               <input 
                 type="text" 
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all font-medium"
                 placeholder="Enter your username"
+                autoComplete="username"
                 required
               />
             </div>
@@ -63,8 +87,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all font-medium"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -81,23 +106,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               )}
             </button>
           </div>
-
-          <div className="mt-8 pt-8 border-t border-slate-800 grid grid-cols-2 gap-4">
-            <button 
-              type="button"
-              onClick={(e) => handleSubmit(e, 'ADMIN')}
-              className="text-xs text-slate-500 hover:text-indigo-400 transition-colors bg-slate-950 border border-slate-800 py-2 rounded-lg"
-            >
-              Admin Mock
-            </button>
-            <button 
-              type="button"
-              onClick={(e) => handleSubmit(e, 'COLLECTOR')}
-              className="text-xs text-slate-500 hover:text-emerald-400 transition-colors bg-slate-950 border border-slate-800 py-2 rounded-lg"
-            >
-              Collector Mock
-            </button>
-          </div>
+          
+        
         </form>
         <p className="text-center text-slate-600 text-xs mt-8">
           Secure Fintech Platform &copy; 2024
