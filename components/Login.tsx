@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 
 interface LoginProps {
-  // Fix: Updated signature to match handleLogin in App.tsx which expects an object with { user, token }
-  onLogin: (data: { user: User; token: string }) => void;
+  onLogin: (user: User) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -29,16 +28,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       if (selectedRole) {
-        const token = 'mock-jwt-token-' + Date.now();
         const mockUser: User = {
           id: selectedRole === 'ADMIN' ? 'u-admin' : 'u-coll-1',
           username: username,
           role: selectedRole,
           balance: selectedRole === 'ADMIN' ? 0 : 5000,
-          token: token
+          token: 'mock-jwt-token-' + Date.now()
         };
-        // Fix: Pass an object with user and token properties as expected by App.tsx handleLogin
-        onLogin({ user: mockUser, token: token });
+        onLogin(mockUser);
       } else {
         setError('Invalid username or password.');
       }
