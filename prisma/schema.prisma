@@ -1,0 +1,134 @@
+// Prisma Schema for MG Badin - 3D Lottery Banker Management System
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+enum Role {
+  ADMIN
+  COLLECTOR
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(COLLECTOR)
+  balance      Decimal  @default(0.00) @db.Decimal(15, 2)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  bets         Bet[]
+  adjustments  Adjustment[]
+
+  @@map("users")
+}
+
+// ============================================
+// GAME PHASE MANAGEMENT
+// ============================================
+
+model GamePhase {
+  id          String    @id @default(uuid())
+  name        String    // e.g., "Jan-01", "Feb-15"
+  active      Boolean   @default(false)
+  startDate   DateTime  @default(now()) @map("start_date")
+  endDate     DateTime? @map("end_date")
+  globalLimit Decimal   @default(50000.00) @map("global_limit") @db.Decimal(15, 2)
+  totalBets   Int       @default(0) @map("total_bets")
+  totalVolume Decimal   @default(0.00) @map("total_volume") @db.Decimal(15, 2)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  bets         Bet[]
+  numberLimits NumberLimit[]
+  ledgerEntry  LedgerEntry?
+
+  @@map("game_phases")
+}
+
+// ============================================
+// NUMBER LIMITS (Override global limits per number)
+// ============================================
+
+model NumberLimit {
+  phaseId   String  @map("phase_id")
+  number    String  @db.Char(3) // "000" to "999"
+  maxAmount Decimal @map("max_amount") @db.Decimal(15, 2)
+
+  // Relations
+  phase GamePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@id([phaseId, number])
+  @@map("number_limits")
+}
+
+// ============================================
+// BETTING LEDGER
+// ============================================
+
+model Bet {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  phaseId   String   @map("phase_id")
+  number    String   @db.Char(3) // "000" to "999"
+  amount    Decimal  @db.Decimal(15, 2)
+  timestamp DateTime @default(now())
+
+  // Relations
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phase GamePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@index([phaseId])
+  @@index([userId])
+  @@index([number])
+  @@map("bets")
+}
+
+// ============================================
+// SETTLEMENT LEDGER (Finalized Phase History)
+// ============================================
+
+model LedgerEntry {
+  id        String   @id @default(uuid())
+  phaseId   String   @unique @map("phase_id")
+  totalIn   Decimal  @map("total_in") @db.Decimal(15, 2)
+  totalOut  Decimal  @map("total_out") @db.Decimal(15, 2)
+  netProfit Decimal  @map("net_profit") @db.Decimal(15, 2)
+  settledAt DateTime @default(now()) @map("settled_at")
+
+  // Relations
+  phase GamePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@map("settlement_ledger")
+}
+
+// ============================================
+// BALANCE ADJUSTMENTS (Audit Trail)
+// ============================================
+
+model Adjustment {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  amount      Decimal  @db.Decimal(15, 2)
+  reason      String
+  adjustedBy  String   @map("adjusted_by") // Admin who made the adjustment
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("adjustments")
+}

@@ -1,0 +1,137 @@
+# ============================================
+# MG Badin - Docker Compose Configuration
+# Multi-Tenant: 3 Apps (Different Users) + Single PostgreSQL (3 Databases)
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # PostgreSQL Database (Single Instance - 3 Databases)
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: mgbadin-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mgbadin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mgbadin_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-mgbadin_db}
+      # Create multiple databases on init
+      POSTGRES_MULTIPLE_DATABASES: user1_db,user2_db,user3_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mgbadin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mgbadin-network
+
+  # ============================================
+  # App Instance 1 - User 1 (Own Database)
+  # ============================================
+  app1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mgbadin-app1
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_NAME: ${APP1_NAME:-User1-App}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mgbadin}:${POSTGRES_PASSWORD:-mgbadin_secret}@postgres:5432/user1_db?schema=public
+      JWT_SECRET: ${APP1_JWT_SECRET:-user1-secret-key-change-me}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "3001:3000"
+    networks:
+      - mgbadin-network
+
+  # ============================================
+  # App Instance 2 - User 2 (Own Database)
+  # ============================================
+  app2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mgbadin-app2
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_NAME: ${APP2_NAME:-User2-App}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mgbadin}:${POSTGRES_PASSWORD:-mgbadin_secret}@postgres:5432/user2_db?schema=public
+      JWT_SECRET: ${APP2_JWT_SECRET:-user2-secret-key-change-me}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "3002:3000"
+    networks:
+      - mgbadin-network
+
+  # ============================================
+  # App Instance 3 - User 3 (Own Database)
+  # ============================================
+  app3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mgbadin-app3
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      APP_NAME: ${APP3_NAME:-User3-App}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mgbadin}:${POSTGRES_PASSWORD:-mgbadin_secret}@postgres:5432/user3_db?schema=public
+      JWT_SECRET: ${APP3_JWT_SECRET:-user3-secret-key-change-me}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "3003:3000"
+    networks:
+      - mgbadin-network
+
+  # ============================================
+  # Nginx Reverse Proxy
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: mgbadin-lb
+    restart: unless-stopped
+    depends_on:
+      - app1
+      - app2
+      - app3
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - mgbadin-network
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  mgbadin-network:
+    driver: bridge
