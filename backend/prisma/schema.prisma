@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  username  String   @unique @db.VarChar(50)
+  role      Role
+  balance   Decimal  @default(0.00) @db.Decimal(15, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  bets Bet[]
+
+  @@map("users")
+}
+
+model GamePhase {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(20)
+  active      Boolean  @default(false)
+  startDate   DateTime @default(now()) @map("start_date") @db.Timestamp(6)
+  endDate     DateTime? @map("end_date") @db.Timestamp(6)
+  globalLimit Decimal  @default(50000.00) @map("global_limit") @db.Decimal(15, 2)
+
+  numberLimits NumberLimit[]
+  bets         Bet[]
+  settlement   SettlementLedger?
+
+  @@map("game_phases")
+}
+
+model NumberLimit {
+  phaseId   String  @map("phase_id") @db.Uuid
+  number    String  @db.Char(3)
+  maxAmount Decimal @map("max_amount") @db.Decimal(15, 2)
+
+  phase GamePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@id([phaseId, number])
+  @@map("number_limits")
+}
+
+model Bet {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  phaseId   String   @map("phase_id") @db.Uuid
+  number    String   @db.Char(3)
+  amount    Decimal  @db.Decimal(15, 2)
+  timestamp DateTime @default(now()) @db.Timestamp(6)
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phase GamePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@map("bets")
+}
+
+model SettlementLedger {
+  id         String  @id @default(uuid()) @db.Uuid
+  phaseId    String  @unique @map("phase_id") @db.Uuid
+  totalIn    Decimal @map("total_in") @db.Decimal(15, 2)
+  totalOut   Decimal @map("total_out") @db.Decimal(15, 2)
+  netProfit  Decimal @map("net_profit") @db.Decimal(15, 2)
+  settledAt  DateTime @default(now()) @map("settled_at") @db.Timestamp(6)
+
+  phase GamePhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@map("settlement_ledger")
+}
+
+enum Role {
+  ADMIN
+  COLLECTOR
+}
