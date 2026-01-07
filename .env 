@@ -11,5 +11,4 @@ JWT_SECRET_1=your-jwt-secret-instance-1-change-me
 JWT_SECRET_2=your-jwt-secret-instance-2-change-me
 JWT_SECRET_3=your-jwt-secret-instance-3-change-me
 
-# Gemini API key (shared across instances)
-GEMINI_API_KEY=your-gemini-api-key
+# Gemini API key (shared across instances

@@ -12,7 +12,8 @@
   "dependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@google/genai": "latest"
+    "@google/genai": "latest",
+    "tesseract.js": "^5.0.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

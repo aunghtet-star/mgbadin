@@ -8,6 +8,7 @@ import betsRoutes from './routes/bets';
 import riskRoutes from './routes/risk';
 import ledgerRoutes from './routes/ledger';
 import usersRoutes from './routes/users';
+import scanRoutes from './routes/scan';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/bets', betsRoutes);
 app.use('/api/risk', riskRoutes);
 app.use('/api/ledger', ledgerRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/scan', scanRoutes);
 
 // Error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
