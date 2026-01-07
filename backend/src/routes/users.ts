@@ -1,25 +1,34 @@
 import { Router, Response } from 'express';
-import { query, queryOne } from '../db';
+import prisma from '../lib/prisma';
 import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth';
 import bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 
 const router = Router();
-
-interface User {
-  id: string;
-  username: string;
-  role: string;
-  balance: number;
-  created_at: string;
-}
 
 // Get all users (admin only)
 router.get('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    const users = await query<User>(
-      'SELECT id, username, role, balance, created_at FROM users ORDER BY created_at DESC'
-    );
-    res.json({ users });
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        balance: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const formatted = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      role: u.role,
+      balance: u.balance.toNumber(),
+      created_at: u.createdAt,
+    }));
+
+    res.json({ users: formatted });
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -30,26 +39,39 @@ router.get('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respons
 router.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const { username, password, role } = req.body;
-    
-    const existing = await queryOne<User>(
-      'SELECT id FROM users WHERE username = $1',
-      [username]
-    );
-    
+
+    const existing = await prisma.user.findUnique({
+      where: { username },
+    });
+
     if (existing) {
       return res.status(400).json({ error: 'Username already exists' });
     }
-    
+
     const passwordHash = await bcrypt.hash(password, 10);
-    
-    const [user] = await query<User>(
-      `INSERT INTO users (username, password_hash, role)
-       VALUES ($1, $2, $3)
-       RETURNING id, username, role, balance, created_at`,
-      [username, passwordHash, role]
-    );
-    
-    res.status(201).json({ user });
+
+    const user = await prisma.user.create({
+      data: {
+        username,
+        passwordHash,
+        role,
+      },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        balance: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json({
+      user: {
+        ...user,
+        balance: user.balance.toNumber(),
+        created_at: user.createdAt,
+      },
+    });
   } catch (error) {
     console.error('Create user error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -60,26 +82,40 @@ router.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respon
 router.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const { username, password, role, balance } = req.body;
-    
-    let updateQuery = 'UPDATE users SET username = $1, role = $2, balance = $3';
-    let params = [username, role, balance, req.params.id];
-    
+
+    const updateData: any = {
+      username,
+      role,
+      balance: new Prisma.Decimal(balance),
+    };
+
     if (password) {
-      const passwordHash = await bcrypt.hash(password, 10);
-      updateQuery = 'UPDATE users SET username = $1, role = $2, balance = $3, password_hash = $4 WHERE id = $5 RETURNING id, username, role, balance, created_at';
-      params = [username, role, balance, passwordHash, req.params.id];
-    } else {
-      updateQuery += ' WHERE id = $4 RETURNING id, username, role, balance, created_at';
+      updateData.passwordHash = await bcrypt.hash(password, 10);
     }
-    
-    const [user] = await query<User>(updateQuery, params);
-    
-    if (!user) {
+
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: updateData,
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        balance: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({
+      user: {
+        ...user,
+        balance: user.balance.toNumber(),
+        created_at: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    res.json({ user });
-  } catch (error) {
     console.error('Update user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -88,7 +124,9 @@ router.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Resp
 // Delete user (admin only)
 router.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    await prisma.user.delete({
+      where: { id: req.params.id },
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -103,18 +141,26 @@ router.get('/:id/history', authMiddleware, async (req: AuthRequest, res: Respons
     if (req.user!.role !== 'ADMIN' && req.user!.id !== req.params.id) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
-    const bets = await query(
-      `SELECT b.*, gp.name as phase_name
-       FROM bets b
-       JOIN game_phases gp ON b.phase_id = gp.id
-       WHERE b.user_id = $1
-       ORDER BY b.timestamp DESC
-       LIMIT 100`,
-      [req.params.id]
-    );
-    
-    res.json({ bets });
+
+    const bets = await prisma.bet.findMany({
+      where: { userId: req.params.id },
+      include: {
+        phase: {
+          select: { name: true },
+        },
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 100,
+    });
+
+    const formatted = bets.map(b => ({
+      ...b,
+      phase_name: b.phase.name,
+      amount: b.amount.toNumber(),
+      phase: undefined,
+    }));
+
+    res.json({ bets: formatted });
   } catch (error) {
     console.error('Get user history error:', error);
     res.status(500).json({ error: 'Internal server error' });

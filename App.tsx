@@ -50,10 +50,10 @@ const App: React.FC = () => {
           id: p.id,
           name: p.name,
           active: p.active,
-          startDate: p.start_date,
-          endDate: p.end_date,
-          totalBets: p.total_bets || 0,
-          totalVolume: parseFloat(p.total_volume) || 0
+          startDate: p.startDate || p.start_date,
+          endDate: p.endDate || p.end_date,
+          totalBets: p.totalBets || p.total_bets || 0,
+          totalVolume: parseFloat(p.totalVolume || p.total_volume) || 0
         }));
         setPhases(mappedPhases);
       }
@@ -63,11 +63,11 @@ const App: React.FC = () => {
       if (ledgerResult.data?.entries) {
         const mappedLedger: LedgerEntry[] = ledgerResult.data.entries.map((l: any) => ({
           id: l.id,
-          phaseId: l.phase_id,
-          totalIn: parseFloat(l.total_in) || 0,
-          totalOut: parseFloat(l.total_out) || 0,
-          profit: parseFloat(l.profit) || 0,
-          closedAt: l.closed_at
+          phaseId: l.phaseId || l.phase_id,
+          totalIn: parseFloat(l.totalIn || l.total_in) || 0,
+          totalOut: parseFloat(l.totalOut || l.total_out) || 0,
+          profit: parseFloat(l.netProfit || l.net_profit || l.profit) || 0,
+          closedAt: l.settledAt || l.settled_at || l.closedAt || l.closed_at
         }));
         setLedger(mappedLedger);
       }
@@ -85,9 +85,9 @@ const App: React.FC = () => {
       if (betsResult.data?.bets) {
         const mappedBets: Bet[] = betsResult.data.bets.map((b: any) => ({
           id: b.id,
-          phaseId: b.phase_id,
-          userId: b.user_id,
-          userRole: b.user_role,
+          phaseId: b.phaseId || b.phase_id,
+          userId: b.userId || b.user_id,
+          userRole: b.userRole || b.user_role,
           number: b.number,
           amount: parseFloat(b.amount) || 0,
           timestamp: b.timestamp
@@ -191,8 +191,8 @@ const App: React.FC = () => {
         id: result.data.phase.id,
         name: result.data.phase.name,
         active: result.data.phase.active,
-        startDate: result.data.phase.start_date,
-        endDate: result.data.phase.end_date,
+        startDate: result.data.phase.startDate || result.data.phase.start_date,
+        endDate: result.data.phase.endDate || result.data.phase.end_date,
         totalBets: 0,
         totalVolume: 0
       };
@@ -201,12 +201,6 @@ const App: React.FC = () => {
   };
 
   const handleDeletePhase = async (phaseId: string) => {
-    const phaseBets = allBets.filter(b => b.phaseId === phaseId);
-    if (phaseBets.length > 0) {
-      alert("Cannot delete a phase that contains bets. Void all bets first.");
-      return;
-    }
-
     const result = await api.deletePhase(phaseId);
     if (result.error) {
       alert(result.error);
@@ -249,9 +243,9 @@ const App: React.FC = () => {
     if (result.data?.bets) {
       const preparedBets: Bet[] = result.data.bets.map((b: any) => ({
         id: b.id,
-        phaseId: b.phase_id,
-        userId: b.user_id,
-        userRole: b.user_role,
+        phaseId: b.phaseId || b.phase_id,
+        userId: b.userId || b.user_id,
+        userRole: b.userRole || b.user_role,
         number: b.number,
         amount: parseFloat(b.amount) || 0,
         timestamp: b.timestamp
@@ -289,9 +283,9 @@ const App: React.FC = () => {
     if (result.data?.bets) {
       const preparedReductions: Bet[] = result.data.bets.map((b: any) => ({
         id: b.id,
-        phaseId: b.phase_id,
-        userId: b.user_id,
-        userRole: b.user_role,
+        phaseId: b.phaseId || b.phase_id,
+        userId: b.userId || b.user_id,
+        userRole: b.userRole || b.user_role,
         number: b.number,
         amount: parseFloat(b.amount) || 0,
         timestamp: b.timestamp
@@ -361,9 +355,9 @@ const App: React.FC = () => {
     if (result.data?.bet) {
       const adjBet: Bet = {
         id: result.data.bet.id,
-        phaseId: result.data.bet.phase_id,
-        userId: result.data.bet.user_id,
-        userRole: result.data.bet.user_role,
+        phaseId: result.data.bet.phaseId || result.data.bet.phase_id,
+        userId: result.data.bet.userId || result.data.bet.user_id,
+        userRole: result.data.bet.userRole || result.data.bet.user_role,
         number: result.data.bet.number,
         amount: parseFloat(result.data.bet.amount) || 0,
         timestamp: result.data.bet.timestamp
@@ -620,7 +614,7 @@ const App: React.FC = () => {
                 </div>
               )}
               {currentUser.role === 'ADMIN' && !activePhase && (
-                <button 
+                <button
                   onClick={() => setActiveTab('phases')}
                   className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black uppercase transition-all"
                 >

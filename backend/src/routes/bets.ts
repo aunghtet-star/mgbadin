@@ -1,30 +1,25 @@
 import { Router, Response } from 'express';
-import { query, queryOne, transaction } from '../db';
+import prisma from '../lib/prisma';
 import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 
 const router = Router();
 
-interface Bet {
-  id: string;
-  phase_id: string;
-  user_id: string;
-  user_role: string;
-  number: string;
-  amount: number;
-  timestamp: string;
-}
-
 const createBetSchema = z.object({
   phaseId: z.string().uuid(),
-  number: z.string().regex(/^([0-9]{2,3}|ADJ)$/),
+  number: z.string().regex(/^([0-9]{2,3}|ADJ)$/).transform(val =>
+    val === 'ADJ' ? val : val.padStart(3, '0')
+  ),
   amount: z.number(),
 });
 
 const bulkBetSchema = z.object({
   phaseId: z.string().uuid(),
   bets: z.array(z.object({
-    number: z.string().regex(/^([0-9]{2,3}|ADJ)$/),
+    number: z.string().regex(/^([0-9]{2,3}|ADJ)$/).transform(val =>
+      val === 'ADJ' ? val : val.padStart(3, '0')
+    ),
     amount: z.number(),
   })),
 });
@@ -32,15 +27,24 @@ const bulkBetSchema = z.object({
 // Get all bets for a phase
 router.get('/phase/:phaseId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const bets = await query<Bet>(
-      `SELECT b.*, u.username 
-       FROM bets b 
-       JOIN users u ON b.user_id = u.id 
-       WHERE b.phase_id = $1 
-       ORDER BY b.timestamp DESC`,
-      [req.params.phaseId]
-    );
-    res.json({ bets });
+    const bets = await prisma.bet.findMany({
+      where: { phaseId: req.params.phaseId },
+      include: {
+        user: {
+          select: { username: true },
+        },
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    // Flatten the response to include username
+    const formattedBets = bets.map(bet => ({
+      ...bet,
+      username: bet.user.username,
+      user: undefined,
+    }));
+
+    res.json({ bets: formattedBets });
   } catch (error) {
     console.error('Get bets error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -50,15 +54,21 @@ router.get('/phase/:phaseId', authMiddleware, async (req: AuthRequest, res: Resp
 // Get aggregated bets by number for a phase
 router.get('/phase/:phaseId/aggregated', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const aggregated = await query<{ number: string; total: number }>(
-      `SELECT number, SUM(amount) as total 
-       FROM bets 
-       WHERE phase_id = $1 
-       GROUP BY number 
-       ORDER BY total DESC`,
-      [req.params.phaseId]
-    );
-    res.json({ aggregated });
+    const aggregated = await prisma.bet.groupBy({
+      by: ['number'],
+      where: { phaseId: req.params.phaseId },
+      _sum: { amount: true },
+      orderBy: {
+        _sum: { amount: 'desc' },
+      },
+    });
+
+    const formatted = aggregated.map(item => ({
+      number: item.number,
+      total: item._sum.amount?.toNumber() || 0,
+    }));
+
+    res.json({ aggregated: formatted });
   } catch (error) {
     console.error('Get aggregated bets error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -68,12 +78,13 @@ router.get('/phase/:phaseId/aggregated', authMiddleware, async (req: AuthRequest
 // Get user's bets for a phase
 router.get('/phase/:phaseId/my', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const bets = await query<Bet>(
-      `SELECT * FROM bets 
-       WHERE phase_id = $1 AND user_id = $2 
-       ORDER BY timestamp DESC`,
-      [req.params.phaseId, req.user!.id]
-    );
+    const bets = await prisma.bet.findMany({
+      where: {
+        phaseId: req.params.phaseId,
+        userId: req.user!.id,
+      },
+      orderBy: { timestamp: 'desc' },
+    });
     res.json({ bets });
   } catch (error) {
     console.error('Get my bets error:', error);
@@ -87,30 +98,23 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     const { phaseId, number, amount } = createBetSchema.parse(req.body);
 
     // Check if phase is active
-    const phase = await queryOne<{ active: boolean }>(
-      'SELECT active FROM game_phases WHERE id = $1',
-      [phaseId]
-    );
+    const phase = await prisma.gamePhase.findUnique({
+      where: { id: phaseId },
+      select: { active: true },
+    });
 
     if (!phase?.active) {
       return res.status(400).json({ error: 'Phase is not active' });
     }
 
-    const [bet] = await query<Bet>(
-      `INSERT INTO bets (phase_id, user_id, user_role, number, amount)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [phaseId, req.user!.id, req.user!.role, number, amount]
-    );
-
-    // Update phase totals
-    await query(
-      `UPDATE game_phases 
-       SET total_bets = total_bets + 1, 
-           total_volume = total_volume + $1 
-       WHERE id = $2`,
-      [Math.abs(amount), phaseId]
-    );
+    const bet = await prisma.bet.create({
+      data: {
+        phaseId,
+        userId: req.user!.id,
+        number,
+        amount: new Prisma.Decimal(amount),
+      },
+    });
 
     res.status(201).json({ bet });
   } catch (error) {
@@ -128,41 +132,27 @@ router.post('/bulk', authMiddleware, async (req: AuthRequest, res: Response) => 
     const { phaseId, bets: betData } = bulkBetSchema.parse(req.body);
 
     // Check if phase is active
-    const phase = await queryOne<{ active: boolean }>(
-      'SELECT active FROM game_phases WHERE id = $1',
-      [phaseId]
-    );
+    const phase = await prisma.gamePhase.findUnique({
+      where: { id: phaseId },
+      select: { active: true },
+    });
 
     if (!phase?.active) {
       return res.status(400).json({ error: 'Phase is not active' });
     }
 
-    const createdBets = await transaction(async (client) => {
-      const results: Bet[] = [];
-      let totalVolume = 0;
-
-      for (const bet of betData) {
-        const result = await client.query(
-          `INSERT INTO bets (phase_id, user_id, user_role, number, amount)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING *`,
-          [phaseId, req.user!.id, req.user!.role, bet.number, bet.amount]
-        );
-        results.push(result.rows[0]);
-        totalVolume += Math.abs(bet.amount);
-      }
-
-      // Update phase totals
-      await client.query(
-        `UPDATE game_phases 
-         SET total_bets = total_bets + $1, 
-             total_volume = total_volume + $2 
-         WHERE id = $3`,
-        [betData.length, totalVolume, phaseId]
-      );
-
-      return results;
-    });
+    const createdBets = await prisma.$transaction(
+      betData.map(bet =>
+        prisma.bet.create({
+          data: {
+            phaseId,
+            userId: req.user!.id,
+            number: bet.number,
+            amount: new Prisma.Decimal(bet.amount),
+          },
+        })
+      )
+    );
 
     res.status(201).json({ bets: createdBets });
   } catch (error) {
@@ -177,22 +167,17 @@ router.post('/bulk', authMiddleware, async (req: AuthRequest, res: Response) => 
 // Delete a bet (admin only)
 router.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    const bet = await queryOne<Bet>('SELECT * FROM bets WHERE id = $1', [req.params.id]);
+    const bet = await prisma.bet.findUnique({
+      where: { id: req.params.id },
+    });
 
     if (!bet) {
       return res.status(404).json({ error: 'Bet not found' });
     }
 
-    await query('DELETE FROM bets WHERE id = $1', [req.params.id]);
-
-    // Update phase totals
-    await query(
-      `UPDATE game_phases 
-       SET total_bets = total_bets - 1, 
-           total_volume = total_volume - $1 
-       WHERE id = $2`,
-      [Math.abs(bet.amount), bet.phase_id]
-    );
+    await prisma.bet.delete({
+      where: { id: req.params.id },
+    });
 
     res.json({ success: true });
   } catch (error) {

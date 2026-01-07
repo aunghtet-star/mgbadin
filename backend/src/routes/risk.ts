@@ -1,35 +1,46 @@
 import { Router, Response } from 'express';
-import { query, queryOne } from '../db';
+import prisma from '../lib/prisma';
 import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth';
+import { Prisma } from '@prisma/client';
 
 const router = Router();
 
 // Get risk analysis for a phase (top numbers by exposure)
 router.get('/phase/:phaseId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const riskData = await query<{ number: string; total: number; potential_payout: number }>(
-      `SELECT 
-         number, 
-         SUM(amount) as total,
-         SUM(amount) * 80 as potential_payout
-       FROM bets 
-       WHERE phase_id = $1 AND amount > 0
-       GROUP BY number 
-       ORDER BY total DESC
-       LIMIT 20`,
-      [req.params.phaseId]
-    );
-    
-    // Get total volume for the phase
-    const totals = await queryOne<{ total_volume: number; total_bets: number }>(
-      'SELECT total_volume, total_bets FROM game_phases WHERE id = $1',
-      [req.params.phaseId]
-    );
-    
-    res.json({ 
+    const aggregated = await prisma.bet.groupBy({
+      by: ['number'],
+      where: {
+        phaseId: req.params.phaseId,
+        amount: { gt: 0 },
+      },
+      _sum: { amount: true },
+      orderBy: {
+        _sum: { amount: 'desc' },
+      },
+      take: 20,
+    });
+
+    const riskData = aggregated.map(item => ({
+      number: item.number,
+      total: item._sum.amount?.toNumber() || 0,
+      potential_payout: (item._sum.amount?.toNumber() || 0) * 80,
+    }));
+
+    // Get total volume and bets count
+    const totals = await prisma.bet.aggregate({
+      where: {
+        phaseId: req.params.phaseId,
+        amount: { gt: 0 },
+      },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    res.json({
       riskData,
-      totalVolume: totals?.total_volume || 0,
-      totalBets: totals?.total_bets || 0
+      totalVolume: totals._sum.amount?.toNumber() || 0,
+      totalBets: totals._count || 0,
     });
   } catch (error) {
     console.error('Get risk data error:', error);
@@ -40,26 +51,37 @@ router.get('/phase/:phaseId', authMiddleware, async (req: AuthRequest, res: Resp
 // Get excess numbers (numbers exceeding limits)
 router.get('/phase/:phaseId/excess', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const excessData = await query<{ 
-      number: string; 
-      current_amount: number; 
-      max_amount: number;
-      excess: number;
-    }>(
-      `SELECT 
-         nl.number,
-         COALESCE(SUM(b.amount), 0) as current_amount,
-         nl.max_amount,
-         GREATEST(COALESCE(SUM(b.amount), 0) - nl.max_amount, 0) as excess
-       FROM number_limits nl
-       LEFT JOIN bets b ON nl.phase_id = b.phase_id AND nl.number = b.number
-       WHERE nl.phase_id = $1
-       GROUP BY nl.number, nl.max_amount
-       HAVING COALESCE(SUM(b.amount), 0) > nl.max_amount
-       ORDER BY excess DESC`,
-      [req.params.phaseId]
-    );
-    
+    const limits = await prisma.numberLimit.findMany({
+      where: { phaseId: req.params.phaseId },
+    });
+
+    const excessData = [];
+
+    for (const limit of limits) {
+      const betSum = await prisma.bet.aggregate({
+        where: {
+          phaseId: req.params.phaseId,
+          number: limit.number,
+        },
+        _sum: { amount: true },
+      });
+
+      const currentAmount = betSum._sum.amount?.toNumber() || 0;
+      const maxAmount = limit.maxAmount.toNumber();
+      const excess = Math.max(currentAmount - maxAmount, 0);
+
+      if (excess > 0) {
+        excessData.push({
+          number: limit.number,
+          current_amount: currentAmount,
+          max_amount: maxAmount,
+          excess,
+        });
+      }
+    }
+
+    excessData.sort((a, b) => b.excess - a.excess);
+
     res.json({ excessData });
   } catch (error) {
     console.error('Get excess data error:', error);
@@ -71,15 +93,19 @@ router.get('/phase/:phaseId/excess', authMiddleware, async (req: AuthRequest, re
 router.post('/limits', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const { phaseId, number, maxAmount } = req.body;
-    
-    await query(
-      `INSERT INTO number_limits (phase_id, number, max_amount)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (phase_id, number) 
-       DO UPDATE SET max_amount = $3`,
-      [phaseId, number, maxAmount]
-    );
-    
+
+    await prisma.numberLimit.upsert({
+      where: {
+        phaseId_number: { phaseId, number },
+      },
+      update: { maxAmount: new Prisma.Decimal(maxAmount) },
+      create: {
+        phaseId,
+        number,
+        maxAmount: new Prisma.Decimal(maxAmount),
+      },
+    });
+
     res.json({ success: true });
   } catch (error) {
     console.error('Set limit error:', error);
@@ -91,17 +117,23 @@ router.post('/limits', authMiddleware, adminOnly, async (req: AuthRequest, res: 
 router.post('/limits/bulk', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
     const { phaseId, limits } = req.body;
-    
-    for (const limit of limits) {
-      await query(
-        `INSERT INTO number_limits (phase_id, number, max_amount)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (phase_id, number) 
-         DO UPDATE SET max_amount = $3`,
-        [phaseId, limit.number, limit.maxAmount]
-      );
-    }
-    
+
+    await prisma.$transaction(
+      limits.map((limit: { number: string; maxAmount: number }) =>
+        prisma.numberLimit.upsert({
+          where: {
+            phaseId_number: { phaseId, number: limit.number },
+          },
+          update: { maxAmount: new Prisma.Decimal(limit.maxAmount) },
+          create: {
+            phaseId,
+            number: limit.number,
+            maxAmount: new Prisma.Decimal(limit.maxAmount),
+          },
+        })
+      )
+    );
+
     res.json({ success: true });
   } catch (error) {
     console.error('Bulk set limits error:', error);
@@ -112,11 +144,16 @@ router.post('/limits/bulk', authMiddleware, adminOnly, async (req: AuthRequest, 
 // Get all limits for a phase
 router.get('/limits/:phaseId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const limits = await query<{ number: string; max_amount: number }>(
-      'SELECT number, max_amount FROM number_limits WHERE phase_id = $1',
-      [req.params.phaseId]
-    );
-    res.json({ limits });
+    const limits = await prisma.numberLimit.findMany({
+      where: { phaseId: req.params.phaseId },
+    });
+
+    const formatted = limits.map(l => ({
+      number: l.number,
+      max_amount: l.maxAmount.toNumber(),
+    }));
+
+    res.json({ limits: formatted });
   } catch (error) {
     console.error('Get limits error:', error);
     res.status(500).json({ error: 'Internal server error' });

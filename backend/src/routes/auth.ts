@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
-import { query, queryOne } from '../db';
+import prisma from '../lib/prisma';
 import { z } from 'zod';
 
 const router = Router();
@@ -17,29 +17,20 @@ const registerSchema = z.object({
   role: z.enum(['ADMIN', 'COLLECTOR']),
 });
 
-interface User {
-  id: string;
-  username: string;
-  password_hash: string;
-  role: 'ADMIN' | 'COLLECTOR';
-  balance: number;
-}
-
 // Login
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = loginSchema.parse(req.body);
 
-    const user = await queryOne<User>(
-      'SELECT * FROM users WHERE username = $1',
-      [username]
-    );
+    const user = await prisma.user.findUnique({
+      where: { username },
+    });
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password_hash);
+    const validPassword = await bcrypt.compare(password, user.passwordHash);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -69,15 +60,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Register (admin only in production)
+// Register
 router.post('/register', async (req, res) => {
   try {
     const { username, password, role } = registerSchema.parse(req.body);
 
-    const existingUser = await queryOne<User>(
-      'SELECT id FROM users WHERE username = $1',
-      [username]
-    );
+    const existingUser = await prisma.user.findUnique({
+      where: { username },
+    });
 
     if (existingUser) {
       return res.status(400).json({ error: 'Username already exists' });
@@ -85,12 +75,19 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const [newUser] = await query<User>(
-      `INSERT INTO users (username, password_hash, role)
-       VALUES ($1, $2, $3)
-       RETURNING id, username, role, balance`,
-      [username, passwordHash, role]
-    );
+    const newUser = await prisma.user.create({
+      data: {
+        username,
+        passwordHash,
+        role,
+      },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        balance: true,
+      },
+    });
 
     res.status(201).json({ user: newUser });
   } catch (error) {
@@ -113,10 +110,15 @@ router.get('/me', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as { id: string };
 
-    const user = await queryOne<User>(
-      'SELECT id, username, role, balance FROM users WHERE id = $1',
-      [decoded.id]
-    );
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        balance: true,
+      },
+    });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

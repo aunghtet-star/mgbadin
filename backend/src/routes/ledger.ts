@@ -1,30 +1,32 @@
 import { Router, Response } from 'express';
-import { query } from '../db';
+import prisma from '../lib/prisma';
 import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-interface LedgerEntry {
-  id: string;
-  phase_id: string;
-  phase_name: string;
-  winning_number: string | null;
-  total_in: number;
-  total_out: number;
-  profit: number;
-  closed_at: string;
-}
-
 // Get all ledger entries
 router.get('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    const entries = await query<LedgerEntry>(
-      `SELECT sl.*, gp.name as phase_name
-       FROM settlement_ledger sl
-       JOIN game_phases gp ON sl.phase_id = gp.id
-       ORDER BY sl.closed_at DESC`
-    );
-    res.json({ entries });
+    const entries = await prisma.settlementLedger.findMany({
+      include: {
+        phase: {
+          select: { name: true },
+        },
+      },
+      orderBy: { settledAt: 'desc' },
+    });
+
+    const formatted = entries.map(entry => ({
+      id: entry.id,
+      phase_id: entry.phaseId,
+      phase_name: entry.phase.name,
+      total_in: entry.totalIn.toNumber(),
+      total_out: entry.totalOut.toNumber(),
+      net_profit: entry.netProfit.toNumber(),
+      settled_at: entry.settledAt,
+    }));
+
+    res.json({ entries: formatted });
   } catch (error) {
     console.error('Get ledger error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -34,20 +36,23 @@ router.get('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respons
 // Get ledger summary
 router.get('/summary', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    const summary = await query<{ 
-      total_in: number; 
-      total_out: number; 
-      total_profit: number;
-      phases_count: number;
-    }>(
-      `SELECT 
-         COALESCE(SUM(total_in), 0) as total_in,
-         COALESCE(SUM(total_out), 0) as total_out,
-         COALESCE(SUM(profit), 0) as total_profit,
-         COUNT(*) as phases_count
-       FROM settlement_ledger`
-    );
-    res.json({ summary: summary[0] });
+    const aggregate = await prisma.settlementLedger.aggregate({
+      _sum: {
+        totalIn: true,
+        totalOut: true,
+        netProfit: true,
+      },
+      _count: true,
+    });
+
+    res.json({
+      summary: {
+        total_in: aggregate._sum.totalIn?.toNumber() || 0,
+        total_out: aggregate._sum.totalOut?.toNumber() || 0,
+        total_profit: aggregate._sum.netProfit?.toNumber() || 0,
+        phases_count: aggregate._count,
+      },
+    });
   } catch (error) {
     console.error('Get ledger summary error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -57,14 +62,30 @@ router.get('/summary', authMiddleware, adminOnly, async (req: AuthRequest, res: 
 // Get ledger entry for a specific phase
 router.get('/phase/:phaseId', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    const entries = await query<LedgerEntry>(
-      `SELECT sl.*, gp.name as phase_name
-       FROM settlement_ledger sl
-       JOIN game_phases gp ON sl.phase_id = gp.id
-       WHERE sl.phase_id = $1`,
-      [req.params.phaseId]
-    );
-    res.json({ entries });
+    const entry = await prisma.settlementLedger.findUnique({
+      where: { phaseId: req.params.phaseId },
+      include: {
+        phase: {
+          select: { name: true },
+        },
+      },
+    });
+
+    if (!entry) {
+      return res.json({ entries: [] });
+    }
+
+    const formatted = {
+      id: entry.id,
+      phase_id: entry.phaseId,
+      phase_name: entry.phase.name,
+      total_in: entry.totalIn.toNumber(),
+      total_out: entry.totalOut.toNumber(),
+      net_profit: entry.netProfit.toNumber(),
+      settled_at: entry.settledAt,
+    };
+
+    res.json({ entries: [formatted] });
   } catch (error) {
     console.error('Get phase ledger error:', error);
     res.status(500).json({ error: 'Internal server error' });

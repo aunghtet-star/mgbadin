@@ -15,6 +15,8 @@ services:
       POSTGRES_DB: mgbadin
     volumes:
       - pgdata-1:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - mgbadin-net-1
     healthcheck:
