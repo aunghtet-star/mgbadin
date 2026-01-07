@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
+import api from '../services/api';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -12,36 +13,35 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Simulate network delay
-    setTimeout(() => {
-      let selectedRole: 'ADMIN' | 'COLLECTOR' | null = null;
-
-      if (username === 'admin' && password === 'admin123') {
-        selectedRole = 'ADMIN';
-      } else if (username === 'user' && password === 'user123') {
-        selectedRole = 'COLLECTOR';
-      }
-
-      if (selectedRole) {
-        const mockUser: User = {
-          id: selectedRole === 'ADMIN' ? 'u-admin' : 'u-coll-1',
-          username: username,
-          role: selectedRole,
-          balance: selectedRole === 'ADMIN' ? 0 : 5000,
-          token: 'mock-jwt-token-' + Date.now()
-        };
-        onLogin(mockUser);
-      } else {
-        setError('Invalid username or password.');
-      }
+    try {
+      const result = await api.login(username, password);
       
-      setIsLoading(false);
-    }, 800);
+      if (result.error) {
+        setError(result.error);
+        setIsLoading(false);
+        return;
+      }
+
+      if (result.data?.user) {
+        const user: User = {
+          id: result.data.user.id,
+          username: result.data.user.username,
+          role: result.data.user.role,
+          balance: result.data.user.balance || 0,
+          token: result.data.token
+        };
+        onLogin(user);
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
+    }
+    
+    setIsLoading(false);
   };
 
   return (

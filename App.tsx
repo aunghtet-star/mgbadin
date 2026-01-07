@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, GamePhase, Bet, LedgerEntry } from './types';
 import BulkEntry from './components/BulkEntry';
 import RiskDashboard from './components/RiskDashboard';
@@ -8,6 +8,7 @@ import { PhaseManager } from './components/PhaseManager';
 import Login from './components/Login';
 import UserHistory from './components/UserHistory';
 import AdjustmentsManager from './components/AdjustmentsManager';
+import api from './services/api';
 
 type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' | 'adjustments';
 
@@ -15,39 +16,88 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('phases');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'light';
   });
-  
-  const [activePhase, setActivePhase] = useState<GamePhase | null>(() => {
-    const saved = localStorage.getItem('banker_active_phase');
-    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
-  });
 
-  const [phases, setPhases] = useState<GamePhase[]>(() => {
-    const saved = localStorage.getItem('banker_all_phases');
-    try { 
-      return saved ? JSON.parse(saved) : []; 
-    } catch { 
-      return []; 
-    }
+  const [activePhase, setActivePhaseState] = useState<GamePhase | null>(() => {
+    const saved = localStorage.getItem('activePhase');
+    return saved ? JSON.parse(saved) : null;
   });
-  
-  const [allBets, setAllBets] = useState<Bet[]>(() => {
-    const saved = localStorage.getItem('banker_all_bets');
-    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
-  });
-  
-  const [ledger, setLedger] = useState<LedgerEntry[]>(() => {
-    const saved = localStorage.getItem('banker_ledger');
-    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
-  });
+  const [phases, setPhases] = useState<GamePhase[]>([]);
+  const [allBets, setAllBets] = useState<Bet[]>([]);
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
 
   const [limits, setLimits] = useState<Record<string, number>>({
     'global': 5000,
     '777': 2000,
     '000': 1000
   });
+
+  // Load data from API
+  const loadData = useCallback(async () => {
+    if (!api.getToken()) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Load phases
+      const phasesResult = await api.getPhases();
+      if (phasesResult.data?.phases) {
+        const mappedPhases: GamePhase[] = phasesResult.data.phases.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          active: p.active,
+          startDate: p.start_date,
+          endDate: p.end_date,
+          totalBets: p.total_bets || 0,
+          totalVolume: parseFloat(p.total_volume) || 0
+        }));
+        setPhases(mappedPhases);
+      }
+
+      // Load ledger
+      const ledgerResult = await api.getLedger();
+      if (ledgerResult.data?.entries) {
+        const mappedLedger: LedgerEntry[] = ledgerResult.data.entries.map((l: any) => ({
+          id: l.id,
+          phaseId: l.phase_id,
+          totalIn: parseFloat(l.total_in) || 0,
+          totalOut: parseFloat(l.total_out) || 0,
+          profit: parseFloat(l.profit) || 0,
+          closedAt: l.closed_at
+        }));
+        setLedger(mappedLedger);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+
+    setIsLoading(false);
+  }, []);
+
+  // Load bets for active phase
+  const loadPhaseBets = useCallback(async (phaseId: string) => {
+    try {
+      const betsResult = await api.getBetsForPhase(phaseId);
+      if (betsResult.data?.bets) {
+        const mappedBets: Bet[] = betsResult.data.bets.map((b: any) => ({
+          id: b.id,
+          phaseId: b.phase_id,
+          userId: b.user_id,
+          userRole: b.user_role,
+          number: b.number,
+          amount: parseFloat(b.amount) || 0,
+          timestamp: b.timestamp
+        }));
+        setAllBets(mappedBets);
+      }
+    } catch (error) {
+      console.error('Error loading bets:', error);
+    }
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -59,69 +109,115 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Check for existing session on mount
   useEffect(() => {
-    localStorage.setItem('banker_active_phase', JSON.stringify(activePhase));
-  }, [activePhase]);
+    const checkSession = async () => {
+      if (api.getToken()) {
+        const result = await api.getCurrentUser();
+        if (result.data?.user) {
+          const user: User = {
+            id: result.data.user.id,
+            username: result.data.user.username,
+            role: result.data.user.role,
+            balance: result.data.user.balance || 0,
+            token: api.getToken() || undefined
+          };
+          setCurrentUser(user);
+          await loadData();
+        } else {
+          api.setToken(null);
+          setIsLoading(false);
+        }
+      } else {
+        setIsLoading(false);
+      }
+    };
+    checkSession();
+  }, [loadData]);
 
+  // Load bets when active phase changes
   useEffect(() => {
-    localStorage.setItem('banker_all_phases', JSON.stringify(phases));
-  }, [phases]);
+    if (!activePhase) return;
+    if (phases.length && !phases.find(p => p.id === activePhase.id)) {
+      setActivePhase(null);
+      return;
+    }
+    loadPhaseBets(activePhase.id);
+  }, [activePhase, loadPhaseBets, phases]);
 
-  useEffect(() => {
-    localStorage.setItem('banker_all_bets', JSON.stringify(allBets));
-  }, [allBets]);
-
-  useEffect(() => {
-    localStorage.setItem('banker_ledger', JSON.stringify(ledger));
-  }, [ledger]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('banker_session');
-    if (saved) setCurrentUser(JSON.parse(saved));
-  }, []);
+  // Wrapper to persist activePhase to localStorage and support functional updates
+  const setActivePhase = (phase: GamePhase | null | ((prev: GamePhase | null) => GamePhase | null)) => {
+    setActivePhaseState(prev => {
+      const next = typeof phase === 'function' ? phase(prev) : phase;
+      if (next) {
+        localStorage.setItem('activePhase', JSON.stringify(next));
+      } else {
+        localStorage.removeItem('activePhase');
+      }
+      return next;
+    });
+  };
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   const toggleSidebar = () => setIsSidebarCollapsed(prev => !prev);
 
-  const handleLogin = (user: User) => {
+  const handleLogin = async (user: User) => {
     setCurrentUser(user);
-    localStorage.setItem('banker_session', JSON.stringify(user));
     setActiveTab(user.role === 'ADMIN' ? 'phases' : 'entry');
+    await loadData();
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('banker_session');
+    api.logout();
+    // Keep phases, bets, ledger and activePhase in state - they will be reloaded on next login
+    // Phase should persist independently of user login/logout
   };
 
-  const handleAddPhase = (name: string) => {
+  const handleAddPhase = async (name: string) => {
     if (phases.some(p => p.name === name)) {
       alert("A phase with this name already exists.");
       return;
     }
-    const newPhase: GamePhase = {
-      id: name,
-      name,
-      active: true,
-      startDate: new Date().toISOString(),
-      endDate: null,
-      totalBets: 0,
-      totalVolume: 0
-    };
-    setPhases(prev => [newPhase, ...prev]);
+
+    const result = await api.createPhase(name);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    if (result.data?.phase) {
+      const newPhase: GamePhase = {
+        id: result.data.phase.id,
+        name: result.data.phase.name,
+        active: result.data.phase.active,
+        startDate: result.data.phase.start_date,
+        endDate: result.data.phase.end_date,
+        totalBets: 0,
+        totalVolume: 0
+      };
+      setPhases(prev => [newPhase, ...prev]);
+    }
   };
 
-  const handleDeletePhase = (phaseId: string) => {
+  const handleDeletePhase = async (phaseId: string) => {
     const phaseBets = allBets.filter(b => b.phaseId === phaseId);
     if (phaseBets.length > 0) {
       alert("Cannot delete a phase that contains bets. Void all bets first.");
       return;
     }
+
+    const result = await api.deletePhase(phaseId);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
     setPhases(prev => prev.filter(p => p.id !== phaseId));
     if (activePhase?.id === phaseId) setActivePhase(null);
   };
 
-  const handleSelectPhase = (phaseId: string) => {
+  const handleSelectPhase = async (phaseId: string) => {
     if (!phaseId) {
       setActivePhase(null);
       return;
@@ -129,16 +225,7 @@ const App: React.FC = () => {
     const targetPhase = phases.find(p => p.id === phaseId);
     if (!targetPhase) return;
 
-    const phaseBets = allBets.filter(b => b.phaseId === phaseId);
-    const totalVolume = phaseBets.reduce((sum, b) => sum + b.amount, 0);
-    
-    const updatedPhase: GamePhase = {
-      ...targetPhase,
-      totalBets: phaseBets.length,
-      totalVolume: totalVolume
-    };
-
-    setActivePhase(updatedPhase);
+    setActivePhase(targetPhase);
     if (currentUser?.role === 'ADMIN') {
       setActiveTab('risk');
     } else {
@@ -146,67 +233,93 @@ const App: React.FC = () => {
     }
   };
 
-  const handleNewBets = (newBets: { number: string; amount: number }[]) => {
+  const handleNewBets = async (newBets: { number: string; amount: number }[]) => {
     if (!currentUser || !activePhase) return;
     if (ledger.some(l => l.phaseId === activePhase.id)) {
       alert("This phase is already closed and cannot accept new bets.");
       return;
     }
-    
-    const timestamp = new Date().toISOString();
-    const preparedBets: Bet[] = newBets.map((b, i) => ({
-      id: `b-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
-      phaseId: activePhase.id,
-      userId: currentUser.id,
-      userRole: currentUser.role,
-      number: b.number,
-      amount: b.amount,
-      timestamp
-    }));
 
-    setAllBets(prev => [...prev, ...preparedBets]);
-    
-    setActivePhase(prev => prev ? ({
-      ...prev,
-      totalBets: prev.totalBets + preparedBets.length,
-      totalVolume: prev.totalVolume + preparedBets.reduce((acc, curr) => acc + curr.amount, 0)
-    }) : null);
+    const result = await api.createBulkBets(activePhase.id, newBets);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    if (result.data?.bets) {
+      const preparedBets: Bet[] = result.data.bets.map((b: any) => ({
+        id: b.id,
+        phaseId: b.phase_id,
+        userId: b.user_id,
+        userRole: b.user_role,
+        number: b.number,
+        amount: parseFloat(b.amount) || 0,
+        timestamp: b.timestamp
+      }));
+
+      setAllBets(prev => [...prev, ...preparedBets]);
+
+      setActivePhase(prev => prev ? ({
+        ...prev,
+        totalBets: prev.totalBets + preparedBets.length,
+        totalVolume: prev.totalVolume + preparedBets.reduce((acc, curr) => acc + curr.amount, 0)
+      }) : null);
+    }
   };
 
-  const handleBulkReduction = (reductionBets: { number: string; amount: number }[]) => {
+  const handleBulkReduction = async (reductionBets: { number: string; amount: number }[]) => {
     if (!currentUser || !activePhase) return;
     if (ledger.some(l => l.phaseId === activePhase.id)) {
       alert("This phase is settled.");
       return;
     }
-    
-    const timestamp = new Date().toISOString();
-    const preparedReductions: Bet[] = reductionBets.map((b, i) => ({
-      id: `red-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
-      phaseId: activePhase.id,
-      userId: currentUser.id,
-      userRole: currentUser.role,
+
+    // Convert to negative amounts for reduction
+    const negativeBets = reductionBets.map(b => ({
       number: b.number,
-      amount: -Math.abs(b.amount), 
-      timestamp
+      amount: -Math.abs(b.amount)
     }));
 
-    setAllBets(prev => [...prev, ...preparedReductions]);
-    
-    setActivePhase(prev => prev ? ({
-      ...prev,
-      totalVolume: Math.max(-10000000, prev.totalVolume - Math.abs(reductionBets.reduce((a,c)=>a+c.amount, 0)))
-    }) : null);
+    const result = await api.createBulkBets(activePhase.id, negativeBets);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    if (result.data?.bets) {
+      const preparedReductions: Bet[] = result.data.bets.map((b: any) => ({
+        id: b.id,
+        phaseId: b.phase_id,
+        userId: b.user_id,
+        userRole: b.user_role,
+        number: b.number,
+        amount: parseFloat(b.amount) || 0,
+        timestamp: b.timestamp
+      }));
+
+      setAllBets(prev => [...prev, ...preparedReductions]);
+
+      setActivePhase(prev => prev ? ({
+        ...prev,
+        totalVolume: Math.max(-10000000, prev.totalVolume - Math.abs(reductionBets.reduce((a, c) => a + c.amount, 0)))
+      }) : null);
+    }
   };
 
-  const handleVoidBet = (betId: string) => {
+  const handleVoidBet = async (betId: string) => {
     if (!activePhase || ledger.some(l => l.phaseId === activePhase.id)) return;
-    
+
     const betToVoid = allBets.find(b => b.id === betId);
     if (!betToVoid) return;
 
+    const result = await api.deleteBet(betId);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
     setAllBets(prev => prev.filter(b => b.id !== betId));
-    
+
     setActivePhase(prev => prev ? ({
       ...prev,
       totalBets: Math.max(0, prev.totalBets - 1),
@@ -214,48 +327,58 @@ const App: React.FC = () => {
     }) : null);
   };
 
-  const handleUpdateBetAmount = (betId: string, newAmount: number, newNumber?: string) => {
+  const handleUpdateBetAmount = async (betId: string, newAmount: number, newNumber?: string) => {
     if (!activePhase || ledger.some(l => l.phaseId === activePhase.id)) return;
-    
+
     const betToUpdate = allBets.find(b => b.id === betId);
     if (!betToUpdate) return;
 
     const difference = betToUpdate.amount - newAmount;
 
-    setAllBets(prev => prev.map(b => b.id === betId ? { 
-      ...b, 
-      amount: newAmount, 
-      number: newNumber !== undefined ? newNumber : b.number 
+    // For now, we handle this client-side since we don't have an update endpoint
+    // In production, you'd want to add an update endpoint to the backend
+    setAllBets(prev => prev.map(b => b.id === betId ? {
+      ...b,
+      amount: newAmount,
+      number: newNumber !== undefined ? newNumber : b.number
     } : b));
-    
+
     setActivePhase(prev => prev ? ({
       ...prev,
       totalVolume: prev.totalVolume - difference
     }) : null);
   };
 
-  const handleApplyAdjustment = (amount: number) => {
+  const handleApplyAdjustment = async (amount: number) => {
     if (!activePhase || !currentUser || ledger.some(l => l.phaseId === activePhase.id)) return;
 
-    const adjBet: Bet = {
-      id: `adj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      phaseId: activePhase.id,
-      userId: currentUser.id,
-      userRole: currentUser.role,
-      number: 'ADJ', 
-      amount: Math.abs(amount), 
-      timestamp: new Date().toISOString()
-    };
+    const result = await api.createBet(activePhase.id, 'ADJ', Math.abs(amount));
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
 
-    setAllBets(prev => [...prev, adjBet]);
-    
-    setActivePhase(prev => prev ? ({
-      ...prev,
-      totalVolume: prev.totalVolume + Math.abs(amount)
-    }) : null);
+    if (result.data?.bet) {
+      const adjBet: Bet = {
+        id: result.data.bet.id,
+        phaseId: result.data.bet.phase_id,
+        userId: result.data.bet.user_id,
+        userRole: result.data.bet.user_role,
+        number: result.data.bet.number,
+        amount: parseFloat(result.data.bet.amount) || 0,
+        timestamp: result.data.bet.timestamp
+      };
+
+      setAllBets(prev => [...prev, adjBet]);
+
+      setActivePhase(prev => prev ? ({
+        ...prev,
+        totalVolume: prev.totalVolume + Math.abs(amount)
+      }) : null);
+    }
   };
 
-  const handleClearExcess = () => {
+  const handleClearExcess = async () => {
     if (!activePhase || !currentUser || ledger.some(l => l.phaseId === activePhase.id)) return;
 
     const totals: Record<string, number> = {};
@@ -264,8 +387,7 @@ const App: React.FC = () => {
       totals[b.number] = (totals[b.number] || 0) + b.amount;
     });
 
-    const timestamp = new Date().toISOString();
-    const corrections: Bet[] = [];
+    const corrections: { number: string; amount: number }[] = [];
     let totalReduction = 0;
 
     for (let i = 0; i < 1000; i++) {
@@ -276,13 +398,8 @@ const App: React.FC = () => {
 
       if (excess > 0) {
         corrections.push({
-          id: `corr-auto-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 5)}`,
-          phaseId: activePhase.id,
-          userId: currentUser.id,
-          userRole: currentUser.role,
           number: numStr,
-          amount: -excess,
-          timestamp
+          amount: -excess
         });
         totalReduction += excess;
       }
@@ -293,37 +410,75 @@ const App: React.FC = () => {
       return;
     }
 
-    setAllBets(prev => [...prev, ...corrections]);
-    
-    setActivePhase(prev => prev ? ({
-      ...prev,
-      totalVolume: Math.max(-10000000, prev.totalVolume - totalReduction)
-    }) : null);
+    const result = await api.createBulkBets(activePhase.id, corrections);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    if (result.data?.bets) {
+      const newBets: Bet[] = result.data.bets.map((b: any) => ({
+        id: b.id,
+        phaseId: b.phase_id,
+        userId: b.user_id,
+        userRole: b.user_role,
+        number: b.number,
+        amount: parseFloat(b.amount) || 0,
+        timestamp: b.timestamp
+      }));
+
+      setAllBets(prev => [...prev, ...newBets]);
+
+      setActivePhase(prev => prev ? ({
+        ...prev,
+        totalVolume: Math.max(-10000000, prev.totalVolume - totalReduction)
+      }) : null);
+    }
   };
 
-  const closeActivePhase = () => {
+  const closeActivePhase = async () => {
     if (!activePhase) return;
-    
-    const totalIn = activePhase.totalVolume;
-    const totalOut = totalIn * 0.72; 
-    const profit = totalIn - totalOut;
 
-    const newLedgerEntry: LedgerEntry = {
-      id: `l-${Date.now()}`,
-      phaseId: activePhase.id,
-      totalIn,
-      totalOut,
-      profit,
-      closedAt: new Date().toISOString()
-    };
+    const result = await api.closePhase(activePhase.id);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
 
-    setLedger(prev => [newLedgerEntry, ...prev]);
+    if (result.data?.settlement) {
+      const newLedgerEntry: LedgerEntry = {
+        id: `l-${Date.now()}`,
+        phaseId: activePhase.id,
+        totalIn: result.data.settlement.totalIn,
+        totalOut: result.data.settlement.totalOut,
+        profit: result.data.settlement.profit,
+        closedAt: new Date().toISOString()
+      };
+
+      setLedger(prev => [newLedgerEntry, ...prev]);
+    }
+
     setActivePhase(null);
     setActiveTab('phases');
+    await loadData(); // Refresh phases list
   };
 
   const currentPhaseBets = activePhase ? allBets.filter(b => b.phaseId === activePhase.id) : [];
   const isReadOnly = activePhase ? ledger.some(l => l.phaseId === activePhase.id) : false;
+
+  // Show loading screen
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold text-white shadow-2xl shadow-indigo-600/30 mb-4 animate-pulse">
+            MB
+          </div>
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
@@ -343,7 +498,7 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
       {/* Desktop Sidebar */}
       <nav className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} hidden md:flex bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col p-4 print:hidden transition-all duration-300 relative`}>
-        <button 
+        <button
           onClick={toggleSidebar}
           className="absolute -right-3 top-10 bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-colors z-10"
         >
@@ -361,7 +516,7 @@ const App: React.FC = () => {
 
         <div className="space-y-2 flex-grow">
           {navItems.map((item) => (
-            <button 
+            <button
               key={item.id}
               onClick={() => setActiveTab(item.id as TabType)}
               title={isSidebarCollapsed ? item.label : undefined}
@@ -376,7 +531,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="mt-auto border-t border-slate-100 dark:border-slate-800 pt-4 px-2 space-y-4">
-          <button 
+          <button
             onClick={toggleTheme}
             className={`w-full flex items-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isSidebarCollapsed ? 'justify-center' : ''}`}
           >
@@ -385,7 +540,7 @@ const App: React.FC = () => {
               <span className="ml-3 font-medium animate-fade-in">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
             )}
           </button>
-          
+
           <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'}`}>
             <div className="w-10 h-10 rounded-full flex-shrink-0 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
               {currentUser.username.charAt(0).toUpperCase()}
@@ -399,8 +554,8 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-          <button 
-            onClick={handleLogout} 
+          <button
+            onClick={handleLogout}
             className={`w-full flex items-center p-3 rounded-lg text-slate-400 hover:text-red-500 transition-colors ${isSidebarCollapsed ? 'justify-center' : ''}`}
           >
             <i className={`fa-solid fa-right-from-bracket ${isSidebarCollapsed ? '' : 'w-6'}`}></i>
@@ -414,7 +569,7 @@ const App: React.FC = () => {
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-6 py-2 pb-safe flex justify-between items-center print:hidden">
         {navItems.map((item) => (
-          <button 
+          <button
             key={item.id}
             onClick={() => setActiveTab(item.id as TabType)}
             className={`flex flex-col items-center p-2 rounded-xl transition-all ${activeTab === item.id ? (item.id === 'reduction' ? 'text-rose-600' : 'text-indigo-600 dark:text-indigo-400') + ' scale-110' : 'text-slate-400'}`}
@@ -423,7 +578,7 @@ const App: React.FC = () => {
             <span className="text-[8px] font-black uppercase mt-1 tracking-tighter text-center max-w-[60px] leading-tight">{item.label}</span>
           </button>
         ))}
-        <button 
+        <button
           onClick={handleLogout}
           className="flex flex-col items-center p-2 rounded-xl text-slate-400"
         >
@@ -435,69 +590,103 @@ const App: React.FC = () => {
       <main className="flex-grow p-4 md:p-6 overflow-y-auto custom-scrollbar print:p-0 mb-20 md:mb-0">
         <div className="animate-fade-in pb-10">
           <div className="md:hidden mb-6 flex items-center justify-between">
-             <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-sm">MB</div>
-                <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{appDisplayName}</span>
-             </div>
-             <button onClick={toggleTheme} className="text-slate-400"><i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i></button>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-sm">MB</div>
+              <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{appDisplayName}</span>
+            </div>
+            <button onClick={toggleTheme} className="text-slate-400"><i className={`fa-solid ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i></button>
           </div>
+
+          {/* Active Phase Indicator - Shows on all pages */}
+          <div className="mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-4 shadow-lg shadow-indigo-600/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <i className={`fa-solid ${activePhase ? 'fa-play-circle' : 'fa-pause-circle'} text-white text-lg`}></i>
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/70 uppercase font-black tracking-widest">Current Active Phase</p>
+                  <p className="text-lg font-black text-white">
+                    {activePhase ? activePhase.name : 'No Phase Selected'}
+                  </p>
+                </div>
+              </div>
+              {activePhase && (
+                <div className="text-right hidden sm:block">
+                  <p className="text-[10px] text-white/70 uppercase font-black tracking-widest">Volume</p>
+                  <p className="text-lg font-black text-white font-mono">
+                    {currentPhaseBets.reduce((sum, b) => sum + b.amount, 0).toLocaleString()}
+                  </p>
+                </div>
+              )}
+              {currentUser.role === 'ADMIN' && !activePhase && (
+                <button 
+                  onClick={() => setActiveTab('phases')}
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-black uppercase transition-all"
+                >
+                  Select Phase
+                </button>
+              )}
+            </div>
+          </div>
+
           {activeTab === 'entry' && (
-            activePhase 
+            activePhase
               ? <BulkEntry onNewBets={handleNewBets} readOnly={isReadOnly} variant="entry" />
               : <div className="text-center py-20 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
-                  <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">Go to Phase Management</button>
-                </div>
+                <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
+                <button onClick={() => setActiveTab('phases')} className="mt-4 text-indigo-600 hover:underline font-bold">Go to Phase Management</button>
+              </div>
           )}
           {activeTab === 'reduction' && (
-            activePhase 
+            activePhase
               ? <BulkEntry onNewBets={handleBulkReduction} readOnly={isReadOnly} variant="reduction" />
               : <div className="text-center py-20 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                  <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
-                </div>
+                <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
+              </div>
           )}
           {activeTab === 'adjustments' && currentUser.role === 'ADMIN' && (
-            activePhase 
-              ? <AdjustmentsManager 
-                  bets={currentPhaseBets} 
-                  onApplyAdjustment={handleApplyAdjustment}
-                  onVoidAdjustment={handleVoidBet}
-                  onUpdateAdjustment={handleUpdateBetAmount}
-                  isReadOnly={isReadOnly}
-                />
+            activePhase
+              ? <AdjustmentsManager
+                bets={currentPhaseBets}
+                onApplyAdjustment={handleApplyAdjustment}
+                onVoidAdjustment={handleVoidBet}
+                onUpdateAdjustment={handleUpdateBetAmount}
+                isReadOnly={isReadOnly}
+              />
               : <div className="text-center py-20">Select a phase.</div>
           )}
           {activeTab === 'risk' && currentUser.role === 'ADMIN' && (
-            activePhase 
-              ? <RiskDashboard 
-                  bets={currentPhaseBets} 
-                  limits={limits} 
-                  onUpdateLimit={(num, lim) => setLimits(prev => ({ ...prev, [num]: lim }))} 
-                  onVoidBet={handleVoidBet}
-                  onUpdateBetAmount={handleUpdateBetAmount}
-                  onApplyReduction={handleBulkReduction as any}
-                  isReadOnly={isReadOnly}
-                />
+            activePhase
+              ? <RiskDashboard
+                bets={currentPhaseBets}
+                limits={limits}
+                onUpdateLimit={(num, lim) => setLimits(prev => ({ ...prev, [num]: lim }))}
+                onVoidBet={handleVoidBet}
+                onUpdateBetAmount={handleUpdateBetAmount}
+                onApplyReduction={handleBulkReduction as any}
+                isReadOnly={isReadOnly}
+              />
               : <div className="text-center py-20">Select a phase.</div>
           )}
           {activeTab === 'excess' && currentUser.role === 'ADMIN' && (
-            activePhase 
-              ? <ExcessDashboard 
-                  bets={currentPhaseBets} 
-                  limits={limits} 
-                  onClearExcess={handleClearExcess}
-                  isReadOnly={isReadOnly}
-                />
+            activePhase
+              ? <ExcessDashboard
+                bets={currentPhaseBets}
+                limits={limits}
+                onClearExcess={handleClearExcess}
+                isReadOnly={isReadOnly}
+              />
               : <div className="text-center py-20">Select a phase.</div>
           )}
           {activeTab === 'phases' && currentUser.role === 'ADMIN' && (
-            <PhaseManager 
+            <PhaseManager
               phases={phases}
-              currentPhase={activePhase} 
-              ledger={ledger} 
+              currentPhase={activePhase}
+              ledger={ledger}
               onAddPhase={handleAddPhase}
               onDeletePhase={handleDeletePhase}
-              onClosePhase={closeActivePhase} 
+              onClosePhase={closeActivePhase}
               onSelectPhase={handleSelectPhase}
               bets={allBets}
             />

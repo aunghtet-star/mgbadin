@@ -49,7 +49,13 @@ const AdjustmentsManager: React.FC<AdjustmentsManagerProps> = ({
     if (editingId && editAmt) {
       onUpdateAdjustment(editingId, parseInt(editAmt));
       setEditingId(null);
+      setEditAmt('');
     }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditAmt('');
   };
 
   return (
@@ -64,11 +70,11 @@ const AdjustmentsManager: React.FC<AdjustmentsManagerProps> = ({
             </h3>
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Entry Amount</label>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Entry Amount (use minus to subtract)</label>
                 <input 
                   type="number" value={amountInput}
                   onChange={(e) => setAmountInput(e.target.value)}
-                  placeholder="E.g. 100000"
+                  placeholder="E.g. 100000 or -50000"
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-xl text-xl font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
                   required
                 />
@@ -137,7 +143,7 @@ const AdjustmentsManager: React.FC<AdjustmentsManagerProps> = ({
                                  <button onClick={handleSaveEdit} className="w-9 h-9 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-md">
                                    <i className="fa-solid fa-check"></i>
                                  </button>
-                                 <button onClick={() => setEditingId(null)} className="w-9 h-9 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                                 <button onClick={handleCancelEdit} className="w-9 h-9 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
                                    <i className="fa-solid fa-xmark"></i>
                                  </button>
                                </>

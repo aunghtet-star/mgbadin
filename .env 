@@ -1,0 +1,15 @@
+# Environment variables for Docker Compose
+# Copy this file to .env and update the values
+
+# Database passwords for each instance
+DB_PASSWORD_1=your-secure-password-1
+DB_PASSWORD_2=your-secure-password-2
+DB_PASSWORD_3=your-secure-password-3
+
+# JWT secrets for each instance (use different values!)
+JWT_SECRET_1=your-jwt-secret-instance-1-change-me
+JWT_SECRET_2=your-jwt-secret-instance-2-change-me
+JWT_SECRET_3=your-jwt-secret-instance-3-change-me
+
+# Gemini API key (shared across instances)
+GEMINI_API_KEY=your-gemini-api-key

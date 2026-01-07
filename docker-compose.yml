@@ -1,0 +1,168 @@
+# Docker Compose for MG Badin - 3 Isolated Instances
+# Each instance has its own frontend, backend, and database
+
+version: '3.8'
+
+services:
+  # ==================== INSTANCE 1 ====================
+  db-1:
+    image: postgres:15-alpine
+    container_name: mgbadin-db-1
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD_1:-postgres123}
+      POSTGRES_DB: mgbadin
+    volumes:
+      - pgdata-1:/var/lib/postgresql/data
+    networks:
+      - mgbadin-net-1
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-1:
+    build: ./backend
+    container_name: mgbadin-backend-1
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD_1:-postgres123}@db-1:5432/mgbadin
+      JWT_SECRET: ${JWT_SECRET_1:-your-secret-key-instance-1}
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:8081
+    depends_on:
+      db-1:
+        condition: service_healthy
+    networks:
+      - mgbadin-net-1
+
+  frontend-1:
+    build:
+      context: .
+      args:
+        VITE_API_URL: /api
+        VITE_GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    container_name: mgbadin-frontend-1
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend-1
+    networks:
+      - mgbadin-net-1
+
+  # ==================== INSTANCE 2 ====================
+  db-2:
+    image: postgres:15-alpine
+    container_name: mgbadin-db-2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD_2:-postgres456}
+      POSTGRES_DB: mgbadin
+    volumes:
+      - pgdata-2:/var/lib/postgresql/data
+    networks:
+      - mgbadin-net-2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-2:
+    build: ./backend
+    container_name: mgbadin-backend-2
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD_2:-postgres456}@db-2:5432/mgbadin
+      JWT_SECRET: ${JWT_SECRET_2:-your-secret-key-instance-2}
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:8082
+    depends_on:
+      db-2:
+        condition: service_healthy
+    networks:
+      - mgbadin-net-2
+
+  frontend-2:
+    build:
+      context: .
+      args:
+        VITE_API_URL: /api
+        VITE_GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    container_name: mgbadin-frontend-2
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    depends_on:
+      - backend-2
+    networks:
+      - mgbadin-net-2
+
+  # ==================== INSTANCE 3 ====================
+  db-3:
+    image: postgres:15-alpine
+    container_name: mgbadin-db-3
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD_3:-postgres789}
+      POSTGRES_DB: mgbadin
+    volumes:
+      - pgdata-3:/var/lib/postgresql/data
+    networks:
+      - mgbadin-net-3
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-3:
+    build: ./backend
+    container_name: mgbadin-backend-3
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD_3:-postgres789}@db-3:5432/mgbadin
+      JWT_SECRET: ${JWT_SECRET_3:-your-secret-key-instance-3}
+      PORT: 3001
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:8083
+    depends_on:
+      db-3:
+        condition: service_healthy
+    networks:
+      - mgbadin-net-3
+
+  frontend-3:
+    build:
+      context: .
+      args:
+        VITE_API_URL: /api
+        VITE_GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    container_name: mgbadin-frontend-3
+    restart: unless-stopped
+    ports:
+      - "8083:80"
+    depends_on:
+      - backend-3
+    networks:
+      - mgbadin-net-3
+
+networks:
+  mgbadin-net-1:
+    driver: bridge
+  mgbadin-net-2:
+    driver: bridge
+  mgbadin-net-3:
+    driver: bridge
+
+volumes:
+  pgdata-1:
+  pgdata-2:
+  pgdata-3:
