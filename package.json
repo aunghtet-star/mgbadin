@@ -1,4 +1,3 @@
-
 {
   "name": "mgbadin-fintech-platform",
   "private": true,
@@ -21,5 +20,8 @@
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.6.2",
     "vite": "^6.0.5"
+  },
+  "prisma": {
+    "schema": "backend/prisma/schema.prisma"
   }
 }
