@@ -129,7 +129,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Hidden Print Template */}
       <div style={{ position: 'fixed', top: 0, left: '-10000mm', width: '297mm', pointerEvents: 'none' }} aria-hidden="true">
         <div id="full-risk-export-manifest" style={{ width: '287mm', padding: '10mm', backgroundColor: '#ffffff', color: '#000000' }}>
@@ -198,7 +198,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2 min-h-[400px]">
+      <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2">
         {verticalStatsUI.map((item, idx) => {
           if (!item) return <div key={`empty-${idx}`} className="hidden md:block h-[56px]"></div>;
           const hasAmount = item.total > 0;
@@ -209,10 +209,10 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
               key={item.number}
               onClick={() => setSelectedNumber(item.number)}
               className={`flex flex-col items-center justify-center border-none rounded-lg py-3 px-1 transition-all hover:scale-105 cursor-pointer h-full relative bg-white dark:bg-slate-950 shadow-sm ${overLimit
-                  ? 'text-red-600 dark:text-red-500 z-10'
-                  : hasAmount
-                    ? 'text-slate-900 dark:text-white'
-                    : 'text-slate-300 dark:text-slate-800'
+                ? 'text-red-600 dark:text-red-500 z-10'
+                : hasAmount
+                  ? 'text-slate-900 dark:text-white'
+                  : 'text-slate-300 dark:text-slate-800'
                 }`}
             >
               <div style={{ fontSize: '15px' }} className="font-black leading-none truncate whitespace-nowrap tracking-tighter">
@@ -224,7 +224,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       </div>
 
       {/* Pagination and Totals */}
-      <div className="flex flex-col md:flex-row items-center justify-between mt-8 gap-4 bg-white dark:bg-slate-900/50 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-col md:flex-row items-center justify-between mt-4 gap-4 bg-white dark:bg-slate-900/50 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl items-center space-x-3 shadow-inner">
           <button
             onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}

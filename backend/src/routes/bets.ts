@@ -186,4 +186,33 @@ router.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: R
   }
 });
 
+// Update a bet amount (admin only)
+router.patch('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const { amount } = req.body;
+
+    if (amount === undefined || typeof amount !== 'number') {
+      return res.status(400).json({ error: 'Amount is required and must be a number' });
+    }
+
+    const existingBet = await prisma.bet.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!existingBet) {
+      return res.status(404).json({ error: 'Bet not found' });
+    }
+
+    const updatedBet = await prisma.bet.update({
+      where: { id: req.params.id },
+      data: { amount: new Prisma.Decimal(amount) },
+    });
+
+    res.json({ bet: updatedBet });
+  } catch (error) {
+    console.error('Update bet error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -123,6 +123,12 @@ class ApiService {
     });
   }
 
+  async setActivePhase(id: string) {
+    return this.request<{ phase: any }>(`/phases/${id}/activate`, {
+      method: 'POST',
+    });
+  }
+
   // Bets endpoints
   async getBetsForPhase(phaseId: string) {
     return this.request<{ bets: any[] }>(`/bets/phase/${phaseId}`);
@@ -153,6 +159,13 @@ class ApiService {
   async deleteBet(id: string) {
     return this.request<{ success: boolean }>(`/bets/${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async updateBet(id: string, amount: number) {
+    return this.request<{ bet: any }>(`/bets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount }),
     });
   }
 

@@ -14,17 +14,17 @@ type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' 
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('phases');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const saved = localStorage.getItem('activeTab') as TabType;
+    return saved || 'phases';
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('theme') as 'dark' | 'light') || 'light';
   });
 
-  const [activePhase, setActivePhaseState] = useState<GamePhase | null>(() => {
-    const saved = localStorage.getItem('activePhase');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [activePhase, setActivePhaseState] = useState<GamePhase | null>(null);
   const [phases, setPhases] = useState<GamePhase[]>([]);
   const [allBets, setAllBets] = useState<Bet[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
@@ -56,6 +56,12 @@ const App: React.FC = () => {
           totalVolume: parseFloat(p.totalVolume || p.total_volume) || 0
         }));
         setPhases(mappedPhases);
+
+        // Set active phase from server (the one with active: true)
+        const serverActivePhase = mappedPhases.find(p => p.active);
+        if (serverActivePhase) {
+          setActivePhaseState(serverActivePhase);
+        }
       }
 
       // Load ledger
@@ -99,6 +105,11 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Persist activeTab to localStorage
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
+
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
@@ -108,6 +119,17 @@ const App: React.FC = () => {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Real-time polling for bets data (every 5 seconds)
+  useEffect(() => {
+    if (!currentUser || !activePhase) return;
+
+    const pollInterval = setInterval(() => {
+      loadPhaseBets(activePhase.id);
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [currentUser, activePhase, loadPhaseBets]);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -145,15 +167,10 @@ const App: React.FC = () => {
     loadPhaseBets(activePhase.id);
   }, [activePhase, loadPhaseBets, phases]);
 
-  // Wrapper to persist activePhase to localStorage and support functional updates
+  // Simple wrapper to set active phase state (no localStorage needed - synced from server)
   const setActivePhase = (phase: GamePhase | null | ((prev: GamePhase | null) => GamePhase | null)) => {
     setActivePhaseState(prev => {
       const next = typeof phase === 'function' ? phase(prev) : phase;
-      if (next) {
-        localStorage.setItem('activePhase', JSON.stringify(next));
-      } else {
-        localStorage.removeItem('activePhase');
-      }
       return next;
     });
   };
@@ -163,7 +180,11 @@ const App: React.FC = () => {
 
   const handleLogin = async (user: User) => {
     setCurrentUser(user);
-    setActiveTab(user.role === 'ADMIN' ? 'phases' : 'entry');
+    // Don't change tab if there's a saved one - only set default if no saved tab
+    const savedTab = localStorage.getItem('activeTab') as TabType;
+    if (!savedTab) {
+      setActiveTab(user.role === 'ADMIN' ? 'phases' : 'entry');
+    }
     await loadData();
   };
 
@@ -196,7 +217,11 @@ const App: React.FC = () => {
         totalBets: 0,
         totalVolume: 0
       };
+      // Mark all other phases as inactive in local state
+      setPhases(prev => prev.map(p => ({ ...p, active: false })));
       setPhases(prev => [newPhase, ...prev]);
+      // Set as active phase
+      setActivePhaseState(newPhase);
     }
   };
 
@@ -208,23 +233,38 @@ const App: React.FC = () => {
     }
 
     setPhases(prev => prev.filter(p => p.id !== phaseId));
-    if (activePhase?.id === phaseId) setActivePhase(null);
+    if (activePhase?.id === phaseId) setActivePhaseState(null);
   };
 
   const handleSelectPhase = async (phaseId: string) => {
     if (!phaseId) {
-      setActivePhase(null);
+      setActivePhaseState(null);
       return;
     }
     const targetPhase = phases.find(p => p.id === phaseId);
     if (!targetPhase) return;
 
-    setActivePhase(targetPhase);
+    // If admin, set the phase as active on the server
     if (currentUser?.role === 'ADMIN') {
-      setActiveTab('risk');
+      const result = await api.setActivePhase(phaseId);
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
+      // Update all phases' active status in local state
+      setPhases(prev => prev.map(p => ({ ...p, active: p.id === phaseId })));
+      // Only switch tab if currently on phases view
+      if (activeTab === 'phases') {
+        setActiveTab('risk');
+      }
     } else {
-      setActiveTab('entry');
+      // Only switch tab if currently on phases view
+      if (activeTab === 'phases') {
+        setActiveTab('entry');
+      }
     }
+
+    setActivePhaseState(targetPhase);
   };
 
   const handleNewBets = async (newBets: { number: string; amount: number }[]) => {
@@ -329,8 +369,13 @@ const App: React.FC = () => {
 
     const difference = betToUpdate.amount - newAmount;
 
-    // For now, we handle this client-side since we don't have an update endpoint
-    // In production, you'd want to add an update endpoint to the backend
+    // Call API to update the bet
+    const result = await api.updateBet(betId, newAmount);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
     setAllBets(prev => prev.map(b => b.id === betId ? {
       ...b,
       amount: newAmount,
@@ -346,7 +391,7 @@ const App: React.FC = () => {
   const handleApplyAdjustment = async (amount: number) => {
     if (!activePhase || !currentUser || ledger.some(l => l.phaseId === activePhase.id)) return;
 
-    const result = await api.createBet(activePhase.id, 'ADJ', Math.abs(amount));
+    const result = await api.createBet(activePhase.id, 'ADJ', amount);
     if (result.error) {
       alert(result.error);
       return;
@@ -367,7 +412,7 @@ const App: React.FC = () => {
 
       setActivePhase(prev => prev ? ({
         ...prev,
-        totalVolume: prev.totalVolume + Math.abs(amount)
+        totalVolume: prev.totalVolume + amount
       }) : null);
     }
   };
@@ -581,7 +626,7 @@ const App: React.FC = () => {
         </button>
       </nav>
 
-      <main className="flex-grow p-4 md:p-6 overflow-y-auto custom-scrollbar print:p-0 mb-20 md:mb-0">
+      <main className="flex-grow p-4 md:p-6 print:p-0 mb-20 md:mb-0">
         <div className="animate-fade-in pb-10">
           <div className="md:hidden mb-6 flex items-center justify-between">
             <div className="flex items-center space-x-2">

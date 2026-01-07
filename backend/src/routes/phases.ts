@@ -166,4 +166,27 @@ router.delete('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: R
   }
 });
 
+// Set phase as active (admin only)
+router.post('/:id/activate', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    // Deactivate all phases and activate the selected one
+    const phase = await prisma.$transaction(async (tx) => {
+      await tx.gamePhase.updateMany({
+        where: { active: true },
+        data: { active: false },
+      });
+
+      return tx.gamePhase.update({
+        where: { id: req.params.id },
+        data: { active: true },
+      });
+    });
+
+    res.json({ phase });
+  } catch (error) {
+    console.error('Activate phase error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
