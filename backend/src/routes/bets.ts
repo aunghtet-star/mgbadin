@@ -8,8 +8,8 @@ const router = Router();
 
 const createBetSchema = z.object({
   phaseId: z.string().uuid(),
-  number: z.string().regex(/^([0-9]{2,3}|ADJ)$/).transform(val =>
-    val === 'ADJ' ? val : val.padStart(3, '0')
+  number: z.string().regex(/^([0-9]{2,3}|ADJ|EXC)$/).transform(val =>
+    val === 'ADJ' || val === 'EXC' ? val : val.padStart(3, '0')
   ),
   amount: z.number(),
 });
@@ -17,8 +17,8 @@ const createBetSchema = z.object({
 const bulkBetSchema = z.object({
   phaseId: z.string().uuid(),
   bets: z.array(z.object({
-    number: z.string().regex(/^([0-9]{2,3}|ADJ)$/).transform(val =>
-      val === 'ADJ' ? val : val.padStart(3, '0')
+    number: z.string().regex(/^([0-9]{2,3}|ADJ|EXC)$/).transform(val =>
+      val === 'ADJ' || val === 'EXC' ? val : val.padStart(3, '0')
     ),
     amount: z.number(),
   })),

@@ -3,6 +3,7 @@
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+console.log('Using API URL:', API_URL);
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -126,6 +127,13 @@ class ApiService {
   async setActivePhase(id: string) {
     return this.request<{ phase: any }>(`/phases/${id}/activate`, {
       method: 'POST',
+    });
+  }
+
+  async updatePhaseGlobalLimit(id: string, globalLimit: number) {
+    return this.request<{ phase: any }>(`/phases/${id}/limit`, {
+      method: 'PATCH',
+      body: JSON.stringify({ globalLimit }),
     });
   }
 

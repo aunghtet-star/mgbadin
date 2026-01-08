@@ -8,9 +8,11 @@ import { PhaseManager } from './components/PhaseManager';
 import Login from './components/Login';
 import UserHistory from './components/UserHistory';
 import AdjustmentsManager from './components/AdjustmentsManager';
+import BetCalculator from './components/BetCalculator';
+import ExcessAdjustmentsManager from './components/ExcessAdjustmentsManager';
 import api from './services/api';
 
-type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' | 'adjustments';
+type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' | 'adjustments' | 'calculator' | 'excessmanage';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -29,11 +31,8 @@ const App: React.FC = () => {
   const [allBets, setAllBets] = useState<Bet[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
 
-  const [limits, setLimits] = useState<Record<string, number>>({
-    'global': 5000,
-    '777': 2000,
-    '000': 1000
-  });
+  const [limits, setLimits] = useState<Record<string, number>>({});
+  const [globalLimit, setGlobalLimit] = useState<number>(0);
 
   // Load data from API
   const loadData = useCallback(async () => {
@@ -53,7 +52,8 @@ const App: React.FC = () => {
           startDate: p.startDate || p.start_date,
           endDate: p.endDate || p.end_date,
           totalBets: p.totalBets || p.total_bets || 0,
-          totalVolume: parseFloat(p.totalVolume || p.total_volume) || 0
+          totalVolume: parseFloat(p.totalVolume || p.total_volume) || 0,
+          globalLimit: parseFloat(p.globalLimit || p.global_limit) || 0
         }));
         setPhases(mappedPhases);
 
@@ -61,6 +61,8 @@ const App: React.FC = () => {
         const serverActivePhase = mappedPhases.find(p => p.active);
         if (serverActivePhase) {
           setActivePhaseState(serverActivePhase);
+          // Set global limit from active phase
+          setGlobalLimit(serverActivePhase.globalLimit || 0);
         }
       }
 
@@ -265,6 +267,26 @@ const App: React.FC = () => {
     }
 
     setActivePhaseState(targetPhase);
+    // Set global limit from selected phase
+    setGlobalLimit(targetPhase.globalLimit || 0);
+  };
+
+  // Handler to update global limit in database
+  const handleUpdateGlobalLimit = async (limit: number) => {
+    if (!activePhase || !currentUser || currentUser.role !== 'ADMIN') return;
+
+    const result = await api.updatePhaseGlobalLimit(activePhase.id, limit);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    // Update local state
+    setGlobalLimit(limit);
+    // Update phase in phases list
+    setPhases(prev => prev.map(p =>
+      p.id === activePhase.id ? { ...p, globalLimit: limit } : p
+    ));
   };
 
   const handleNewBets = async (newBets: { number: string; amount: number }[]) => {
@@ -417,6 +439,36 @@ const App: React.FC = () => {
     }
   };
 
+  // Excess Adjustment handlers
+  const handleApplyExcessAdjustment = async (amount: number) => {
+    if (!activePhase || !currentUser) return;
+
+    const result = await api.createBet(activePhase.id, 'EXC', amount);
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    if (result.data?.bet) {
+      const excBet: Bet = {
+        id: result.data.bet.id,
+        phaseId: result.data.bet.phaseId || result.data.bet.phase_id,
+        userId: result.data.bet.userId || result.data.bet.user_id,
+        userRole: result.data.bet.userRole || result.data.bet.user_role,
+        number: result.data.bet.number,
+        amount: parseFloat(result.data.bet.amount) || 0,
+        timestamp: result.data.bet.timestamp
+      };
+
+      setAllBets(prev => [...prev, excBet]);
+
+      setActivePhase(prev => prev ? ({
+        ...prev,
+        totalVolume: prev.totalVolume + amount
+      }) : null);
+    }
+  };
+
   const handleClearExcess = async () => {
     if (!activePhase || !currentUser || ledger.some(l => l.phaseId === activePhase.id)) return;
 
@@ -432,7 +484,7 @@ const App: React.FC = () => {
     for (let i = 0; i < 1000; i++) {
       const numStr = i.toString().padStart(3, '0');
       const total = totals[numStr] || 0;
-      const limit = limits[numStr] || limits['global'] || 5000;
+      const limit = limits[numStr] || globalLimit || 5000;
       const excess = total - limit;
 
       if (excess > 0) {
@@ -524,8 +576,8 @@ const App: React.FC = () => {
   const navItems = [
     { id: 'entry', label: 'ထိုးမည်', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
     { id: 'reduction', label: 'တင်ပြီးသားအကွက် ပြန်နှုတ်ရန်', icon: 'fa-minus-circle', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-calculator', roles: ['ADMIN'] },
-    { id: 'history', label: 'My History', icon: 'fa-history', roles: ['COLLECTOR'] },
+    { id: 'calculator', label: '3 Calculator', icon: 'fa-calculator', roles: ['ADMIN', 'COLLECTOR'] },
+    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-sliders', roles: ['ADMIN'] }, { id: 'excessmanage', label: '3 ကျွံပြင်ဆင်ရန်', icon: 'fa-fire', roles: ['ADMIN'] }, { id: 'history', label: 'My History', icon: 'fa-history', roles: ['COLLECTOR'] },
     { id: 'risk', label: '3 ချပ်ကြည့်ရန်', icon: 'fa-chart-line', roles: ['ADMIN'] },
     { id: 'excess', label: '3 ကျွံများကြည့်ရန်', icon: 'fa-fire-alt', roles: ['ADMIN'] },
     { id: 'phases', label: '3 ချပ်အသစ်လုပ်ရန်', icon: 'fa-calendar-days', roles: ['ADMIN'] },
@@ -547,7 +599,7 @@ const App: React.FC = () => {
         <div className={`mb-10 px-2 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} overflow-hidden`}>
           <div className="w-10 h-10 bg-indigo-600 rounded-lg flex-shrink-0 flex items-center justify-center text-xl font-bold text-white shadow-lg">MB</div>
           {!isSidebarCollapsed && (
-            <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white truncate animate-fade-in">
+            <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white truncate animate-fade-in">
               {appDisplayName}
             </span>
           )}
@@ -684,6 +736,9 @@ const App: React.FC = () => {
                 <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
               </div>
           )}
+          {activeTab === 'calculator' && (
+            <BetCalculator />
+          )}
           {activeTab === 'adjustments' && currentUser.role === 'ADMIN' && (
             activePhase
               ? <AdjustmentsManager
@@ -700,10 +755,11 @@ const App: React.FC = () => {
               ? <RiskDashboard
                 bets={currentPhaseBets}
                 limits={limits}
+                globalLimit={globalLimit}
                 onUpdateLimit={(num, lim) => setLimits(prev => ({ ...prev, [num]: lim }))}
+                onUpdateGlobalLimit={handleUpdateGlobalLimit}
                 onVoidBet={handleVoidBet}
                 onUpdateBetAmount={handleUpdateBetAmount}
-                onApplyReduction={handleBulkReduction as any}
                 isReadOnly={isReadOnly}
               />
               : <div className="text-center py-20">Select a phase.</div>
@@ -713,7 +769,19 @@ const App: React.FC = () => {
               ? <ExcessDashboard
                 bets={currentPhaseBets}
                 limits={limits}
+                globalLimit={globalLimit}
                 onClearExcess={handleClearExcess}
+                isReadOnly={isReadOnly}
+              />
+              : <div className="text-center py-20">Select a phase.</div>
+          )}
+          {activeTab === 'excessmanage' && currentUser.role === 'ADMIN' && (
+            activePhase
+              ? <ExcessAdjustmentsManager
+                bets={currentPhaseBets}
+                onApplyExcessAdjustment={handleApplyExcessAdjustment}
+                onVoidExcessAdjustment={handleVoidBet}
+                onUpdateExcessAdjustment={handleUpdateBetAmount}
                 isReadOnly={isReadOnly}
               />
               : <div className="text-center py-20">Select a phase.</div>

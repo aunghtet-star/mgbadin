@@ -5,10 +5,11 @@ import { Bet } from '../types';
 interface RiskDashboardProps {
   bets: Bet[];
   limits: Record<string, number>;
+  globalLimit: number;
   onUpdateLimit: (num: string, limit: number) => void;
+  onUpdateGlobalLimit: (limit: number) => void;
   onVoidBet: (id: string) => void;
   onUpdateBetAmount: (id: string, newAmount: number) => void;
-  onApplyReduction: (number: string, amount: number) => void;
   isReadOnly: boolean;
 }
 
@@ -27,7 +28,7 @@ const toVerticalGrid = (data: any[], cols: number) => {
 };
 
 const RiskDashboard: React.FC<RiskDashboardProps> = ({
-  bets, limits, onUpdateLimit, onVoidBet, onUpdateBetAmount, onApplyReduction, isReadOnly
+  bets, limits, globalLimit, onUpdateLimit, onUpdateGlobalLimit, onVoidBet, onUpdateBetAmount, isReadOnly
 }) => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
@@ -35,11 +36,12 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
   const itemsPerPage = 100;
 
   const [showManifest, setShowManifest] = useState(false);
-  const [showBrakeModal, setShowBrakeModal] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
-  const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
-  const [reductionInput, setReductionInput] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
+
+  // Global limit editing state
+  const [limitInput, setLimitInput] = useState('');
+  const [isEditingLimit, setIsEditingLimit] = useState(false);
 
   const stats = useMemo(() => {
     const data: Record<string, number> = {};
@@ -53,8 +55,6 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       }
     });
 
-    const globalLimit = limits['global'] || 5000;
-
     return Object.entries(data).map(([number, total]) => {
       return {
         number,
@@ -63,7 +63,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
         excess: Math.max(0, total - globalLimit)
       };
     }).sort((a, b) => a.number.localeCompare(b.number));
-  }, [bets, limits]);
+  }, [bets, globalLimit]);
 
   const filteredStats = useMemo(() => {
     if (!search) return stats;
@@ -104,6 +104,38 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
     }
     return blocks;
   }, [stats]);
+
+  // Global limit handlers
+  const handleEditLimitInit = () => {
+    setLimitInput(globalLimit.toString());
+    setIsEditingLimit(true);
+  };
+
+  const handleSaveLimitEdit = () => {
+    if (limitInput) {
+      onUpdateGlobalLimit(parseInt(limitInput));
+      setIsEditingLimit(false);
+      setLimitInput('');
+    }
+  };
+
+  const handleCancelLimitEdit = () => {
+    setIsEditingLimit(false);
+    setLimitInput('');
+  };
+
+  const handleCopyToClipboard = () => {
+    const numbersWithAmounts = stats
+      .filter(item => item.total > 0)
+      .map(item => `${item.number}-${item.total}`)
+      .join(', ');
+
+    navigator.clipboard.writeText(numbersWithAmounts).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
+  };
 
   const handleExportPDF = async () => {
     const element = document.getElementById('full-risk-export-manifest');
@@ -171,16 +203,51 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <i className="fa-solid fa-grid-horizontal text-indigo-600"></i>
-          <span>3 ချပ်ကြည့်ရန်</span>
+          <span>3 ချပ်ကြည့်ရန်</span>
         </h3>
 
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          {/* Copy to Clipboard Button */}
           <button
-            onClick={() => setShowBrakeModal(true)}
-            className="flex-grow md:flex-none px-4 md:px-6 py-3 md:py-4 bg-rose-600 text-white rounded-2xl text-[10px] md:text-xs font-black uppercase flex items-center justify-center gap-2 shadow-lg hover:bg-rose-500 transition-all active:scale-95"
+            onClick={handleCopyToClipboard}
+            className="px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+            title="Copy all numbers with amounts to clipboard"
           >
-            ဘရိတ်
+            <i className="fa-solid fa-copy mr-2"></i>
+            Copy All
           </button>
+
+          {/* Global Limit Control */}
+          <div className="flex-grow md:flex-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 md:px-6 py-3 md:py-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-black text-slate-500">Global Limit:</span>
+              {isEditingLimit ? (
+                <>
+                  <input
+                    type="number" value={limitInput}
+                    onChange={(e) => setLimitInput(e.target.value)}
+                    className="w-20 bg-slate-50 dark:bg-slate-950 border border-indigo-500 rounded px-2 py-1 text-sm font-mono font-black outline-none"
+                    autoFocus
+                  />
+                  <button onClick={handleSaveLimitEdit} className="w-7 h-7 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">
+                    <i className="fa-solid fa-check text-xs"></i>
+                  </button>
+                  <button onClick={handleCancelLimitEdit} className="w-7 h-7 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                    <i className="fa-solid fa-xmark text-xs"></i>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="text-base md:text-lg font-black text-indigo-600 font-mono">{globalLimit.toLocaleString()}</span>
+                  {!isReadOnly && (
+                    <button onClick={handleEditLimitInit} className="w-7 h-7 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors">
+                      <i className="fa-solid fa-pen-to-square text-xs"></i>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
           <div className="relative flex-grow min-w-[120px]">
             <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input
@@ -207,8 +274,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
           return (
             <div
               key={item.number}
-              onClick={() => setSelectedNumber(item.number)}
-              className={`flex flex-col items-center justify-center border-none rounded-lg py-3 px-1 transition-all hover:scale-105 cursor-pointer h-full relative bg-white dark:bg-slate-950 shadow-sm ${overLimit
+              className={`flex flex-col items-center justify-center border-none rounded-lg py-3 px-1 transition-all h-full relative bg-white dark:bg-slate-950 shadow-sm ${overLimit
                 ? 'text-red-600 dark:text-red-500 z-10'
                 : hasAmount
                   ? 'text-slate-900 dark:text-white'
@@ -249,12 +315,7 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-4 md:gap-6">
-          <div className="flex flex-col text-center md:text-right">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Global Brake</span>
-            <span className="text-sm font-black text-rose-600 leading-none">
-              {(limits['global'] || 5000).toLocaleString()}
-            </span>
-          </div>
+
           <div className="h-10 w-px bg-slate-200 dark:bg-slate-800"></div>
           <div className="flex flex-col text-center md:text-right">
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Batch Total</span>
@@ -264,44 +325,6 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
           </div>
         </div>
       </div>
-
-      {/* REFINED: Responsive Brake Settings Modal */}
-      {showBrakeModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl animate-fade-in border border-slate-200 dark:border-slate-800">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase flex items-center gap-3">
-                <i className="fa-solid fa-shield-halved text-rose-600"></i>
-                Brake Setting
-              </h3>
-              <button onClick={() => setShowBrakeModal(false)} className="text-slate-400 hover:text-slate-600">
-                <i className="fa-solid fa-circle-xmark text-2xl"></i>
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div className="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-2xl border border-rose-100 dark:border-rose-900/50">
-                <label className="block text-[10px] font-black uppercase text-rose-600 mb-2">Global Brake Limit</label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    defaultValue={limits['global'] || 5000}
-                    onChange={(e) => onUpdateLimit('global', parseInt(e.target.value) || 0)}
-                    className="flex-grow bg-white dark:bg-slate-950 border border-rose-200 dark:border-rose-900/50 p-3 rounded-xl text-lg font-mono font-black outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowBrakeModal(false)}
-                className="w-full py-3.5 bg-indigo-600 text-white rounded-xl font-black uppercase text-xs shadow-lg hover:bg-indigo-500 transition-all active:scale-95"
-              >
-                Close Settings
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showManifest && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
@@ -390,37 +413,6 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
         </div>
       )}
 
-      {selectedNumber && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl animate-fade-in border border-slate-200 dark:border-slate-800">
-            <h3 className="text-xl font-black mb-6 text-slate-900 dark:text-white uppercase">Reduce #{selectedNumber}</h3>
-            <div className="mb-6">
-              <label className="block text-[10px] font-black uppercase text-slate-400 mb-2">Subtract Amount</label>
-              <input
-                type="number" value={reductionInput} onChange={(e) => setReductionInput(e.target.value)}
-                placeholder="0"
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl text-xl font-mono outline-none focus:ring-4 focus:ring-rose-500/20 text-rose-600"
-                autoFocus
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => {
-                  if (reductionInput) {
-                    onApplyReduction(selectedNumber, parseInt(reductionInput));
-                  }
-                  setReductionInput('');
-                  setSelectedNumber(null);
-                }}
-                className="py-3.5 bg-rose-600 text-white rounded-2xl font-black uppercase text-xs shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
-              >
-                Apply
-              </button>
-              <button onClick={() => setSelectedNumber(null)} className="py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-black uppercase text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

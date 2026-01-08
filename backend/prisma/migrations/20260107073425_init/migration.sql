@@ -5,6 +5,7 @@ CREATE TYPE "Role" AS ENUM ('ADMIN', 'COLLECTOR');
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
     "username" VARCHAR(50) NOT NULL,
+    "password_hash" VARCHAR(255) NOT NULL,
     "role" "Role" NOT NULL,
     "balance" DECIMAL(15,2) NOT NULL DEFAULT 0.00,
     "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,

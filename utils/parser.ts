@@ -29,7 +29,7 @@ export const getPermutations = (str: string): string[] => {
  */
 export const parseBulkInput = (input: string): { number: string; amount: number; original: string; isPermutation: boolean }[] => {
   const bets: { number: string; amount: number; original: string; isPermutation: boolean }[] = [];
-  
+
   // Create a working copy of the input that we can mask
   let workingInput = input;
 
@@ -45,7 +45,7 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
 
     // Push direct number with its specific amount
     bets.push({ number: num, amount: dAmount, original, isPermutation: false });
-    
+
     // Push other permutations with the "R" amount
     const perms = getPermutations(num).filter(p => p !== num);
     perms.forEach(p => {
@@ -67,7 +67,7 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
 
     // Push direct
     bets.push({ number: num, amount: dAmount, original, isPermutation: false });
-    
+
     // Push remaining
     const perms = getPermutations(num).filter(p => p !== num);
     perms.forEach(p => {
@@ -77,12 +77,13 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
     workingInput = workingInput.substring(0, match.index) + ' '.repeat(original.length) + workingInput.substring(match.index + original.length);
   }
 
-  // 3. STANDARD PATTERN: 123-1000, 123R1000, etc.
+  // 3. STANDARD PATTERN: 123-1000, 123R1000, 123@1000 etc.
   // Using a robust regex for common delimiters
-  const standardRegex = /(\d{3})\s*(?:([Rr])\s*[@=*\.,\/\-\s]?|[@=*\.,\/\-\s])\s*(\d+)/g;
+  // Note: @ is treated like R (permutation)
+  const standardRegex = /(\d{3})\s*(?:([Rr@])\s*[=*\.,\/\-\s]?|[=*\.,\/\-\s])\s*(\d+)/g;
   while ((match = standardRegex.exec(workingInput)) !== null) {
     const num = match[1];
-    const isPermutation = !!match[2]; 
+    const isPermutation = !!match[2] && (match[2].toLowerCase() === 'r' || match[2] === '@');
     const amount = parseInt(match[3], 10);
     const original = match[0].trim();
 
@@ -118,7 +119,7 @@ export const cleanOcrText = (text: string): string => {
  */
 export const voiceToFormat = (text: string): string => {
   const map: Record<string, string> = {
-    'zero': '0', 'one': '1', 'two': '2', 'three': '3', 
+    'zero': '0', 'one': '1', 'two': '2', 'three': '3',
     'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
     'hundred': '00', 'thousand': '000'
   };

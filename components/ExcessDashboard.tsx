@@ -5,6 +5,7 @@ import { Bet } from '../types';
 interface ExcessDashboardProps {
   bets: Bet[];
   limits: Record<string, number>;
+  globalLimit: number;
   onClearExcess: () => void;
   isReadOnly: boolean;
 }
@@ -23,7 +24,9 @@ const toVerticalGrid = (data: any[], cols: number) => {
   return result;
 };
 
-const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClearExcess, isReadOnly }) => {
+const ExcessDashboard: React.FC<ExcessDashboardProps> = ({
+  bets, limits, globalLimit, onClearExcess, isReadOnly
+}) => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [manifestPage, setManifestPage] = useState(0);
@@ -40,6 +43,7 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClear
     for (let i = 0; i < 1000; i++) {
       data[i.toString().padStart(3, '0')] = 0;
     }
+
     bets.forEach(b => {
       if (data[b.number] !== undefined) {
         data[b.number] += b.amount;
@@ -47,7 +51,7 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClear
     });
 
     return Object.entries(data).map(([number, total]) => {
-      const limit = limits[number] || limits['global'] || 5000;
+      const limit = limits[number] || globalLimit;
       return {
         number,
         total,
@@ -55,7 +59,7 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClear
         excess: Math.max(0, total - limit)
       };
     }).sort((a, b) => a.number.localeCompare(b.number));
-  }, [bets, limits]);
+  }, [bets, limits, globalLimit]);
 
   // Only the numbers with actual excess
   const excessOnlyStats = useMemo(() => {
@@ -68,8 +72,12 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClear
   }, [excessOnlyStats, search]);
 
   const totalExcessVolume = useMemo(() => {
-    return excessOnlyStats.reduce((sum, item) => sum + item.excess, 0);
-  }, [excessOnlyStats]);
+    const baseExcess = excessOnlyStats.reduce((sum, item) => sum + item.excess, 0);
+    const excessAdjustment = bets
+      .filter(b => b.number === 'EXC')
+      .reduce((sum, b) => sum + b.amount, 0);
+    return baseExcess + excessAdjustment;
+  }, [excessOnlyStats, bets]);
 
   const totalPages = Math.ceil(filteredExcess.length / itemsPerPage);
   const activePage = Math.min(currentPage, Math.max(0, totalPages - 1));
@@ -101,6 +109,18 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClear
     }
     return blocks;
   }, [fullBoardStats]);
+
+  const handleCopyToClipboard = () => {
+    const numbersWithExcess = excessOnlyStats
+      .map(item => `${item.number}-${item.excess}`)
+      .join(', ');
+
+    navigator.clipboard.writeText(numbersWithExcess).then(() => {
+      alert('Copied to clipboard!');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
+  };
 
   const handleExportPDF = async () => {
     const element = document.getElementById('full-excess-export-manifest');
@@ -165,12 +185,20 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({ bets, limits, onClear
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm text-center md:text-left">
           <p className="text-[10px] uppercase font-black text-slate-500 mb-1">Hot Numbers Count</p>
           <p className="text-3xl font-black">{excessOnlyStats.length}</p>
         </div>
         <div className="flex gap-2 lg:col-span-2">
+          <button
+            onClick={handleCopyToClipboard}
+            disabled={excessOnlyStats.length === 0}
+            className="flex-grow py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-30"
+          >
+            <i className="fa-solid fa-copy mr-2"></i>
+            Copy All
+          </button>
           <button
             onClick={() => setShowSlip(true)}
             className="flex-grow py-4 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20 active:scale-95"

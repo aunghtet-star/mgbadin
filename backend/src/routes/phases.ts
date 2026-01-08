@@ -189,4 +189,25 @@ router.post('/:id/activate', authMiddleware, adminOnly, async (req: AuthRequest,
   }
 });
 
+// Update global limit for a phase (admin only)
+router.patch('/:id/limit', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
+  try {
+    const { globalLimit } = req.body;
+
+    if (typeof globalLimit !== 'number' || globalLimit < 0) {
+      return res.status(400).json({ error: 'Invalid global limit value' });
+    }
+
+    const phase = await prisma.gamePhase.update({
+      where: { id: req.params.id },
+      data: { globalLimit: new Prisma.Decimal(globalLimit) },
+    });
+
+    res.json({ phase });
+  } catch (error) {
+    console.error('Update global limit error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

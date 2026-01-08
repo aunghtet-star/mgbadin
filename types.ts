@@ -15,6 +15,7 @@ export interface GamePhase {
   endDate: string | null;
   totalBets: number;
   totalVolume: number;
+  globalLimit?: number;
 }
 
 export interface Bet {

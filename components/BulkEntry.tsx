@@ -348,6 +348,39 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
             )}
           </div>
         </div>
+
+        {/* Notation Guide */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+          <h4 className="text-[10px] font-black uppercase text-slate-500 mb-4 tracking-widest flex items-center gap-2">
+            <i className="fa-solid fa-book text-amber-600"></i>
+            Notation Guide
+          </h4>
+          <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+            <div className="flex items-start gap-2">
+              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123-1000</span>
+              <span>= 123 တစ်လုံးထိုး 1000</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123R1000</span>
+              <span>= 123 အစုံ 1000 စီ (6 ခု x 1000)</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123@1000</span>
+              <span>= 123 အစုံ 1000 စီ (R နှင့်အတူ)</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123R1000-2000</span>
+              <span>= 123 ကို 2000, ကျန် 1000 စီ</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123R1000-2000</span>
+              <span>= 123 ကို 2000, ကျန် 1000 စီ</span>
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Accepted separators: - = @ * . , /</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Confirmation Modal */}
