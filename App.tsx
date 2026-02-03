@@ -304,16 +304,16 @@ const App: React.FC = () => {
   };
 
   const handleNewBets = async (newBets: { number: string; amount: number }[]) => {
-    if (!currentUser || !activePhase) return;
+    if (!currentUser || !activePhase) return false;
     if (ledger.some(l => l.phaseId === activePhase.id)) {
       alert("This phase is already closed and cannot accept new bets.");
-      return;
+      return false;
     }
 
     const result = await api.createBulkBets(activePhase.id, newBets);
     if (result.error) {
       alert(result.error);
-      return;
+      return false;
     }
 
     if (result.data?.bets) {
@@ -335,14 +335,16 @@ const App: React.FC = () => {
         totalBets: prev.totalBets + preparedBets.length,
         totalVolume: prev.totalVolume + preparedBets.reduce((acc, curr) => acc + curr.amount, 0)
       }) : null);
+      return true;
     }
+    return false;
   };
 
   const handleBulkReduction = async (reductionBets: { number: string; amount: number }[]) => {
-    if (!currentUser || !activePhase) return;
+    if (!currentUser || !activePhase) return false;
     if (ledger.some(l => l.phaseId === activePhase.id)) {
       alert("This phase is settled.");
-      return;
+      return false;
     }
 
     // Convert to negative amounts for reduction
@@ -354,7 +356,7 @@ const App: React.FC = () => {
     const result = await api.createBulkBets(activePhase.id, negativeBets);
     if (result.error) {
       alert(result.error);
-      return;
+      return false;
     }
 
     if (result.data?.bets) {
@@ -375,7 +377,9 @@ const App: React.FC = () => {
         ...prev,
         totalVolume: Math.max(-10000000, prev.totalVolume - Math.abs(reductionBets.reduce((a, c) => a + c.amount, 0)))
       }) : null);
+      return true;
     }
+    return false;
   };
 
   const handleVoidBet = async (betId: string) => {
