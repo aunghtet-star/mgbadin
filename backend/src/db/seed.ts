@@ -16,7 +16,7 @@ async function seed() {
       ON CONFLICT (username) DO NOTHING
     `, ['admin', adminPassword, 'ADMIN', 0]);
 
-    // Create default collector user
+// Create default user
     const userPassword = await bcrypt.hash('user123', 10);
     await pool.query(`
       INSERT INTO users (username, password_hash, role, balance)
@@ -24,7 +24,6 @@ async function seed() {
       ON CONFLICT (username) DO NOTHING
     `, ['user', userPassword, 'COLLECTOR', 0]);
 
-    console.log('✅ Database seeded successfully!');
     console.log('Default users created:');
     console.log('  - admin / admin123 (ADMIN)');
     console.log('  - user / user123 (COLLECTOR)');

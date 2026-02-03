@@ -20,7 +20,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     try {
       const result = await api.login(username, password);
-      
+
       if (result.error) {
         setError(result.error);
         setIsLoading(false);
@@ -40,7 +40,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     } catch (err) {
       setError('Connection error. Please try again.');
     }
-    
+
     setIsLoading(false);
   };
 
@@ -68,8 +68,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             )}
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-2">Username</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all font-medium"
@@ -80,8 +80,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-2">Password</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all font-medium"
@@ -91,7 +91,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               />
             </div>
 
-            <button 
+            <button
               type="submit"
               disabled={isLoading}
               className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-lg text-white transition-all shadow-lg shadow-indigo-900/20 flex items-center justify-center"
@@ -103,8 +103,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               )}
             </button>
           </div>
-          
-        
+
+
         </form>
         <p className="text-center text-slate-600 text-xs mt-8">
           Secure Fintech Platform &copy; 2024

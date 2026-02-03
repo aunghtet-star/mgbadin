@@ -56,14 +56,15 @@ const RiskDashboard: React.FC<RiskDashboardProps> = ({
     });
 
     return Object.entries(data).map(([number, total]) => {
+      const limit = limits[number] || globalLimit;
       return {
         number,
         total,
-        limit: globalLimit,
-        excess: Math.max(0, total - globalLimit)
+        limit,
+        excess: Math.max(0, total - limit)
       };
     }).sort((a, b) => a.number.localeCompare(b.number));
-  }, [bets, globalLimit]);
+  }, [bets, globalLimit, limits]);
 
   const filteredStats = useMemo(() => {
     if (!search) return stats;

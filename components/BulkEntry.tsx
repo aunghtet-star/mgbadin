@@ -7,9 +7,10 @@ interface BulkEntryProps {
   onNewBets: (bets: { number: string; amount: number }[]) => void;
   readOnly?: boolean;
   variant?: 'entry' | 'reduction';
+  currentTotals?: Record<string, number>;
 }
 
-const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, variant = 'entry' }) => {
+const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, variant = 'entry', currentTotals }) => {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -59,7 +60,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
   }, [scanToast]);
 
   const parsedBetsInfo = useMemo(() => {
-    return parseBulkInput(text);
+    return parseBulkInput(text).filter(bet => bet.amount > 0);
   }, [text]);
 
   // Enhanced grouping logic to handle compound notations properly
@@ -94,6 +95,28 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
 
   const handleProcessClick = () => {
     if (readOnly || parsedBetsInfo.length === 0) return;
+
+    if (isReduction && currentTotals) {
+      // Aggregate reduction amounts by number first
+      const reductionAmounts: Record<string, number> = {};
+      parsedBetsInfo.forEach(bet => {
+        reductionAmounts[bet.number] = (reductionAmounts[bet.number] || 0) + bet.amount;
+      });
+
+      const invalidNumbers = [];
+      for (const [num, amount] of Object.entries(reductionAmounts)) {
+        const currentAmount = currentTotals[num] || 0;
+        if (amount > currentAmount) {
+          invalidNumbers.push(`${num} (Try: ${amount}, Max: ${currentAmount})`);
+        }
+      }
+
+      if (invalidNumbers.length > 0) {
+        alert(`Cannot reduce more than available amount for:\n${invalidNumbers.join('\n')}`);
+        return;
+      }
+    }
+
     setShowConfirmModal(true);
   };
 

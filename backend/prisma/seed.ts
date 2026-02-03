@@ -10,7 +10,7 @@ const prisma = new PrismaClient({ adapter });
 
 enum Role {
     ADMIN = 'ADMIN',
-    COLLECTOR = 'COLLECTOR',
+    USER = 'USER',
 }
 
 async function main() {
@@ -30,19 +30,19 @@ async function main() {
     });
     console.log(`Created admin user: ${admin.username}`);
 
-    // Create default collector user
-    const collectorPassword = await bcrypt.hash('user123', 10);
-    const collector = await prisma.user.upsert({
+    // Create default user
+    const userPassword = await bcrypt.hash('user123', 10);
+    const user = await prisma.user.upsert({
         where: { username: 'user' },
         update: {},
         create: {
             username: 'user',
-            passwordHash: collectorPassword,
-            role: Role.COLLECTOR,
+            passwordHash: userPassword,
+            role: Role.USER,
             balance: 10000,
         },
     });
-    console.log(`Created collector user: ${collector.username}`);
+    console.log(`Created user: ${user.username}`);
 
     // Create a default game phase
     const phase = await prisma.gamePhase.upsert({

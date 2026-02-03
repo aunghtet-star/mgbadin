@@ -12,11 +12,10 @@ const loginSchema = z.object({
 });
 
 const registerSchema = z.object({
-  username: z.string().min(3).max(50),
-  password: z.string().min(6),
-  role: z.enum(['ADMIN', 'COLLECTOR']),
-});
-
+      username: z.string().min(3).max(50),
+      password: z.string().min(6),
+      role: z.enum(['ADMIN', 'COLLECTOR']),
+    });
 // Login
 router.post('/login', async (req, res) => {
   try {

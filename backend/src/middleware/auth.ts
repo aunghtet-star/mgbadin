@@ -2,11 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    username: string;
-    role: 'ADMIN' | 'COLLECTOR';
-  };
+    user?: {
+      id: string;
+      username: string;
+      role: 'ADMIN' | 'COLLECTOR';
+    };
 }
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {

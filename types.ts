@@ -2,7 +2,7 @@
 export interface User {
   id: string;
   username: string;
-  role: 'ADMIN' | 'COLLECTOR';
+  role: 'ADMIN' | 'USER' | 'COLLECTOR';
   balance: number;
   token?: string;
 }
@@ -22,10 +22,11 @@ export interface Bet {
   id: string;
   phaseId: string;
   userId: string;
-  userRole: 'ADMIN' | 'COLLECTOR';
+  userRole: 'ADMIN' | 'USER';
   number: string; // "000" to "999"
   amount: number;
   timestamp: string;
+  phaseName?: string;
 }
 
 export interface LedgerEntry {

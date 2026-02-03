@@ -36,6 +36,9 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       ...(options.headers || {}),
     };
 
@@ -46,6 +49,7 @@ class ApiService {
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
+        cache: 'no-store',
         headers,
       });
 
@@ -84,7 +88,7 @@ class ApiService {
     return this.request<{ user: any }>('/auth/me');
   }
 
-  async register(username: string, password: string, role: 'ADMIN' | 'COLLECTOR') {
+  async register(username: string, password: string, role: 'ADMIN' | 'USER') {
     return this.request<{ user: any }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, role }),
@@ -224,7 +228,7 @@ class ApiService {
     return this.request<{ users: any[] }>('/users');
   }
 
-  async createUser(username: string, password: string, role: 'ADMIN' | 'COLLECTOR') {
+  async createUser(username: string, password: string, role: 'ADMIN' | 'USER') {
     return this.request<{ user: any }>('/users', {
       method: 'POST',
       body: JSON.stringify({ username, password, role }),

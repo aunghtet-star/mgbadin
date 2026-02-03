@@ -7,12 +7,13 @@ import ExcessDashboard from './components/ExcessDashboard';
 import { PhaseManager } from './components/PhaseManager';
 import Login from './components/Login';
 import UserHistory from './components/UserHistory';
+import UserManagement from './components/UserManagement';
 import AdjustmentsManager from './components/AdjustmentsManager';
 import BetCalculator from './components/BetCalculator';
 import ExcessAdjustmentsManager from './components/ExcessAdjustmentsManager';
 import api from './services/api';
 
-type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' | 'adjustments' | 'calculator' | 'excessmanage';
+type TabType = 'entry' | 'reduction' | 'risk' | 'excess' | 'phases' | 'history' | 'adjustments' | 'calculator' | 'excessmanage' | 'users';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -89,7 +90,11 @@ const App: React.FC = () => {
   // Load bets for active phase
   const loadPhaseBets = useCallback(async (phaseId: string) => {
     try {
-      const betsResult = await api.getBetsForPhase(phaseId);
+      const [betsResult, limitsResult] = await Promise.all([
+        api.getBetsForPhase(phaseId),
+        api.getLimits(phaseId)
+      ]);
+
       if (betsResult.data?.bets) {
         const mappedBets: Bet[] = betsResult.data.bets.map((b: any) => ({
           id: b.id,
@@ -102,8 +107,16 @@ const App: React.FC = () => {
         }));
         setAllBets(mappedBets);
       }
+
+      if (limitsResult.data?.limits) {
+        const mappedLimits: Record<string, number> = {};
+        limitsResult.data.limits.forEach((l: any) => {
+          mappedLimits[l.number] = l.max_amount;
+        });
+        setLimits(mappedLimits);
+      }
     } catch (error) {
-      console.error('Error loading bets:', error);
+      console.error('Error loading data:', error);
     }
   }, []);
 
@@ -557,6 +570,14 @@ const App: React.FC = () => {
   const currentPhaseBets = activePhase ? allBets.filter(b => b.phaseId === activePhase.id) : [];
   const isReadOnly = activePhase ? ledger.some(l => l.phaseId === activePhase.id) : false;
 
+  const currentTotals = React.useMemo(() => {
+    const totals: Record<string, number> = {};
+    currentPhaseBets.forEach(b => {
+      totals[b.number] = (totals[b.number] || 0) + b.amount;
+    });
+    return totals;
+  }, [currentPhaseBets]);
+
   // Show loading screen
   if (isLoading) {
     return (
@@ -574,16 +595,19 @@ const App: React.FC = () => {
   if (!currentUser) return <Login onLogin={handleLogin} />;
 
   const navItems = [
-    { id: 'entry', label: 'ထိုးမည်', icon: 'fa-keyboard', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'reduction', label: 'တင်ပြီးသားအကွက် ပြန်နှုတ်ရန်', icon: 'fa-minus-circle', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'calculator', label: '3 Calculator', icon: 'fa-calculator', roles: ['ADMIN', 'COLLECTOR'] },
-    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-sliders', roles: ['ADMIN'] }, { id: 'excessmanage', label: '3 ကျွံပြင်ဆင်ရန်', icon: 'fa-fire', roles: ['ADMIN'] }, { id: 'history', label: 'My History', icon: 'fa-history', roles: ['COLLECTOR'] },
+    { id: 'entry', label: 'ထိုးမည်', icon: 'fa-keyboard', roles: ['ADMIN', 'USER', 'COLLECTOR'] },
+    { id: 'reduction', label: 'တင်ပြီးသားအကွက် ပြန်နှုတ်ရန်', icon: 'fa-minus-circle', roles: ['ADMIN', 'USER', 'COLLECTOR'] },
+    { id: 'calculator', label: '3 Calculator', icon: 'fa-calculator', roles: ['ADMIN', 'USER', 'COLLECTOR'] },
+    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-sliders', roles: ['ADMIN'] }, 
+    { id: 'excessmanage', label: '3 ကျွံပြင်ဆင်ရန်', icon: 'fa-fire', roles: ['ADMIN'] }, 
+    { id: 'users', label: 'အကောင့်များစီမံရန်', icon: 'fa-users', roles: ['ADMIN'] },
+    { id: 'history', label: 'My History', icon: 'fa-history', roles: ['USER', 'COLLECTOR'] },
     { id: 'risk', label: '3 ချပ်ကြည့်ရန်', icon: 'fa-chart-line', roles: ['ADMIN'] },
     { id: 'excess', label: '3 ကျွံများကြည့်ရန်', icon: 'fa-fire-alt', roles: ['ADMIN'] },
     { id: 'phases', label: '3 ချပ်အသစ်လုပ်ရန်', icon: 'fa-calendar-days', roles: ['ADMIN'] },
   ].filter(item => item.roles.includes(currentUser.role));
 
-  const appDisplayName = `MgBaDin (${currentUser.role === 'ADMIN' ? 'Admin' : 'User'})`;
+  const appDisplayName = `MgBaDin (${currentUser.username})`;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 transition-colors duration-300">
@@ -640,7 +664,7 @@ const App: React.FC = () => {
               <div className="text-sm overflow-hidden animate-fade-in">
                 <p className="font-semibold truncate text-slate-900 dark:text-white">{currentUser.username}</p>
                 <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${currentUser.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400'}`}>
-                  {currentUser.role === 'ADMIN' ? 'Admin' : 'Collector'}
+                  {currentUser.role === 'ADMIN' ? 'Admin' : 'User'}
                 </span>
               </div>
             )}
@@ -731,7 +755,12 @@ const App: React.FC = () => {
           )}
           {activeTab === 'reduction' && (
             activePhase
-              ? <BulkEntry onNewBets={handleBulkReduction} readOnly={isReadOnly} variant="reduction" />
+              ? <BulkEntry 
+                  onNewBets={handleBulkReduction} 
+                  readOnly={isReadOnly} 
+                  variant="reduction" 
+                  currentTotals={currentTotals}
+                />
               : <div className="text-center py-20 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
                 <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
               </div>
@@ -798,7 +827,10 @@ const App: React.FC = () => {
               bets={allBets}
             />
           )}
-          {activeTab === 'history' && currentUser.role === 'COLLECTOR' && (
+          {activeTab === 'users' && currentUser.role === 'ADMIN' && (
+            <UserManagement />
+          )}
+          {activeTab === 'history' && currentUser.role === 'USER' && (
             <UserHistory bets={allBets.filter(b => b.userId === currentUser.id && (!activePhase || b.phaseId === activePhase.id))} />
           )}
         </div>

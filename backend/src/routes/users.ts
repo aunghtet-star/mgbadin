@@ -14,17 +14,34 @@ router.get('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respons
         id: true,
         username: true,
         role: true,
-        balance: true,
+        // balance: true, // We don't use the DB balance anymore
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
+    // Get active phase to calculate "balance" (Total Bets in Phase)
+    const activePhase = await prisma.gamePhase.findFirst({
+      where: { active: true }
+    });
+
+    let userTotals: Record<string, number> = {};
+    if (activePhase) {
+      const aggregations = await prisma.bet.groupBy({
+        by: ['userId'],
+        where: { phaseId: activePhase.id },
+        _sum: { amount: true }
+      });
+      aggregations.forEach(agg => {
+        userTotals[agg.userId] = agg._sum.amount?.toNumber() || 0;
+      });
+    }
+
     const formatted = users.map(u => ({
       id: u.id,
       username: u.username,
       role: u.role,
-      balance: u.balance.toNumber(),
+      balance: userTotals[u.id] || 0, // Derived balance
       created_at: u.createdAt,
     }));
 
@@ -60,7 +77,7 @@ router.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respon
         id: true,
         username: true,
         role: true,
-        balance: true,
+        // balance: true,
         createdAt: true,
       },
     });
@@ -68,7 +85,7 @@ router.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respon
     res.status(201).json({
       user: {
         ...user,
-        balance: user.balance.toNumber(),
+        balance: 0, // New user has 0 bets
         created_at: user.createdAt,
       },
     });
@@ -81,12 +98,12 @@ router.post('/', authMiddleware, adminOnly, async (req: AuthRequest, res: Respon
 // Update user (admin only)
 router.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, role, balance } = req.body;
+    const { username, password, role } = req.body; // Removed balance from destructuring
 
     const updateData: any = {
       username,
       role,
-      balance: new Prisma.Decimal(balance),
+      // balance is derived, not updatable directly
     };
 
     if (password) {
@@ -100,15 +117,27 @@ router.put('/:id', authMiddleware, adminOnly, async (req: AuthRequest, res: Resp
         id: true,
         username: true,
         role: true,
-        balance: true,
         createdAt: true,
       },
     });
 
+    // We can return the calculated balance if needed, but for update usually we just return the user info.
+    // To be consistent, we might want to fetch it, but 0 is safe for now or we rely on the list refresh.
+    // Let's re-fetch the calculated balance to be safe/correct in response.
+    const activePhase = await prisma.gamePhase.findFirst({ where: { active: true } });
+    let currentBalance = 0;
+    if (activePhase) {
+        const agg = await prisma.bet.aggregate({
+            where: { phaseId: activePhase.id, userId: user.id },
+            _sum: { amount: true }
+        });
+        currentBalance = agg._sum.amount?.toNumber() || 0;
+    }
+
     res.json({
       user: {
         ...user,
-        balance: user.balance.toNumber(),
+        balance: currentBalance,
         created_at: user.createdAt,
       },
     });

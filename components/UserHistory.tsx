@@ -22,11 +22,13 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
       const dt = new Date(b.timestamp);
       const dateStr = dt.toLocaleDateString().toLowerCase();
       const timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase();
+      const phaseStr = b.phaseName ? b.phaseName.toLowerCase() : '';
       return (
         b.number.toLowerCase().includes(q) ||
         b.amount.toString().includes(q) ||
         dateStr.includes(q) ||
-        timeStr.includes(q)
+        timeStr.includes(q) ||
+        phaseStr.includes(q)
       );
     });
   }, [sortedBets, search]);
@@ -59,7 +61,7 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
         <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
         <input
           type="text"
-          placeholder="Search by number, amount, date..."
+          placeholder="Search by number, amount, date, batch..."
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
@@ -72,6 +74,7 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
           <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
             <tr>
               <th className="px-8 py-5">Date & Time</th>
+              <th className="px-8 py-5">Batch</th>
               <th className="px-8 py-5">Number</th>
               <th className="px-8 py-5 text-right">Amount</th>
             </tr>
@@ -90,6 +93,15 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
                         {dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
+                  </td>
+                  <td className="px-8 py-5 text-slate-500 font-bold text-xs uppercase">
+                    {bet.phaseName ? (
+                      <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 px-2 py-1 rounded">
+                        {bet.phaseName}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
                   </td>
                   <td className="px-8 py-5 font-mono font-black text-slate-900 dark:text-white text-xl">#{bet.number}</td>
                   <td className="px-8 py-5 text-right font-black text-emerald-600 text-xl">
@@ -115,10 +127,15 @@ const UserHistory: React.FC<UserHistoryProps> = ({ bets }) => {
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">{bet.amount.toLocaleString()}</p>
-                  <p className="text-[10px] text-slate-400 font-black uppercase whitespace-nowrap">
+                  <p className="text-sm font-black text-slate-900 dark:text-white mb-1">{bet.amount.toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-400 font-black uppercase whitespace-nowrap mb-1">
                     {dt.toLocaleDateString()} • {dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
+                  {bet.phaseName && (
+                    <span className="text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 px-1.5 py-0.5 rounded font-bold uppercase">
+                      {bet.phaseName}
+                    </span>
+                  )}
                 </div>
               </div>
               <i className="fa-solid fa-chevron-right text-slate-300"></i>
