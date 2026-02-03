@@ -36,7 +36,7 @@ const App: React.FC = () => {
   const [globalLimit, setGlobalLimit] = useState<number>(0);
 
   // Load data from API
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (role?: string) => {
     if (!api.getToken()) {
       setIsLoading(false);
       return;
@@ -67,18 +67,20 @@ const App: React.FC = () => {
         }
       }
 
-      // Load ledger
-      const ledgerResult = await api.getLedger();
-      if (ledgerResult.data?.entries) {
-        const mappedLedger: LedgerEntry[] = ledgerResult.data.entries.map((l: any) => ({
-          id: l.id,
-          phaseId: l.phaseId || l.phase_id,
-          totalIn: parseFloat(l.totalIn || l.total_in) || 0,
-          totalOut: parseFloat(l.totalOut || l.total_out) || 0,
-          profit: parseFloat(l.netProfit || l.net_profit || l.profit) || 0,
-          closedAt: l.settledAt || l.settled_at || l.closedAt || l.closed_at
-        }));
-        setLedger(mappedLedger);
+      // Load ledger - Only for ADMIN
+      if (role === 'ADMIN') {
+        const ledgerResult = await api.getLedger();
+        if (ledgerResult.data?.entries) {
+          const mappedLedger: LedgerEntry[] = ledgerResult.data.entries.map((l: any) => ({
+            id: l.id,
+            phaseId: l.phaseId || l.phase_id,
+            totalIn: parseFloat(l.totalIn || l.total_in) || 0,
+            totalOut: parseFloat(l.totalOut || l.total_out) || 0,
+            profit: parseFloat(l.netProfit || l.net_profit || l.profit) || 0,
+            closedAt: l.settledAt || l.settled_at || l.closedAt || l.closed_at
+          }));
+          setLedger(mappedLedger);
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
