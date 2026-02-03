@@ -16,6 +16,7 @@ model User {
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         Role
   balance      Decimal  @default(0.00) @db.Decimal(15, 2)
+  currentSlipId Int     @default(0) @map("current_slip_id")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   bets Bet[]
@@ -53,7 +54,7 @@ model Bet {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   phaseId   String   @map("phase_id") @db.Uuid
-  betSlipId String?  @map("bet_slip_id") @db.Uuid
+  betSlipId Int?     @map("bet_slip_id")
   number    String   @db.Char(3)
   amount    Decimal  @db.Decimal(15, 2)
   timestamp DateTime @default(now()) @db.Timestamp(6)

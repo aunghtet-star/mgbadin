@@ -3,7 +3,6 @@ import prisma from '../lib/prisma';
 import { authMiddleware, adminOnly, AuthRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
@@ -108,16 +107,23 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Phase is not active' });
     }
 
-    const betSlipId = uuidv4();
+    const bet = await prisma.$transaction(async (tx) => {
+      // Increment user's slip ID
+      const user = await tx.user.update({
+        where: { id: req.user!.id },
+        data: { currentSlipId: { increment: 1 } },
+        select: { currentSlipId: true },
+      });
 
-    const bet = await prisma.bet.create({
-      data: {
-        phaseId,
-        userId: req.user!.id,
-        number,
-        amount: new Prisma.Decimal(amount),
-        betSlipId,
-      },
+      return tx.bet.create({
+        data: {
+          phaseId,
+          userId: req.user!.id,
+          number,
+          amount: new Prisma.Decimal(amount),
+          betSlipId: user.currentSlipId,
+        },
+      });
     });
 
     res.status(201).json({ bet });
@@ -145,21 +151,29 @@ router.post('/bulk', authMiddleware, async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ error: 'Phase is not active' });
     }
 
-    const betSlipId = uuidv4();
+    const createdBets = await prisma.$transaction(async (tx) => {
+      // Increment user's slip ID
+      const user = await tx.user.update({
+        where: { id: req.user!.id },
+        data: { currentSlipId: { increment: 1 } },
+        select: { currentSlipId: true },
+      });
 
-    const createdBets = await prisma.$transaction(
-      betData.map(bet =>
-        prisma.bet.create({
-          data: {
-            phaseId,
-            userId: req.user!.id,
-            number: bet.number,
-            amount: new Prisma.Decimal(bet.amount),
-            betSlipId,
-          },
-        })
-      )
-    );
+      const bets = await Promise.all(
+        betData.map(bet =>
+          tx.bet.create({
+            data: {
+              phaseId,
+              userId: req.user!.id,
+              number: bet.number,
+              amount: new Prisma.Decimal(bet.amount),
+              betSlipId: user.currentSlipId,
+            },
+          })
+        )
+      );
+      return bets;
+    });
 
     res.status(201).json({ bets: createdBets });
   } catch (error) {

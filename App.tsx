@@ -103,7 +103,8 @@ const App: React.FC = () => {
           userRole: b.userRole || b.user_role,
           number: b.number,
           amount: parseFloat(b.amount) || 0,
-          timestamp: b.timestamp
+          timestamp: b.timestamp,
+          betSlipId: b.betSlipId || b.bet_slip_id
         }));
         setAllBets(mappedBets);
       }
@@ -323,7 +324,8 @@ const App: React.FC = () => {
         userRole: b.userRole || b.user_role,
         number: b.number,
         amount: parseFloat(b.amount) || 0,
-        timestamp: b.timestamp
+        timestamp: b.timestamp,
+        betSlipId: b.betSlipId || b.bet_slip_id
       }));
 
       setAllBets(prev => [...prev, ...preparedBets]);
@@ -363,7 +365,8 @@ const App: React.FC = () => {
         userRole: b.userRole || b.user_role,
         number: b.number,
         amount: parseFloat(b.amount) || 0,
-        timestamp: b.timestamp
+        timestamp: b.timestamp,
+        betSlipId: b.betSlipId || b.bet_slip_id
       }));
 
       setAllBets(prev => [...prev, ...preparedReductions]);
@@ -440,7 +443,8 @@ const App: React.FC = () => {
         userRole: result.data.bet.userRole || result.data.bet.user_role,
         number: result.data.bet.number,
         amount: parseFloat(result.data.bet.amount) || 0,
-        timestamp: result.data.bet.timestamp
+        timestamp: result.data.bet.timestamp,
+        betSlipId: result.data.bet.betSlipId || result.data.bet.bet_slip_id
       };
 
       setAllBets(prev => [...prev, adjBet]);
@@ -470,7 +474,8 @@ const App: React.FC = () => {
         userRole: result.data.bet.userRole || result.data.bet.user_role,
         number: result.data.bet.number,
         amount: parseFloat(result.data.bet.amount) || 0,
-        timestamp: result.data.bet.timestamp
+        timestamp: result.data.bet.timestamp,
+        betSlipId: result.data.bet.betSlipId || result.data.bet.bet_slip_id
       };
 
       setAllBets(prev => [...prev, excBet]);
@@ -528,7 +533,8 @@ const App: React.FC = () => {
         userRole: b.user_role,
         number: b.number,
         amount: parseFloat(b.amount) || 0,
-        timestamp: b.timestamp
+        timestamp: b.timestamp,
+        betSlipId: b.betSlipId || b.bet_slip_id
       }));
 
       setAllBets(prev => [...prev, ...newBets]);
@@ -598,9 +604,9 @@ const App: React.FC = () => {
     { id: 'entry', label: 'ထိုးမည်', icon: 'fa-keyboard', roles: ['ADMIN', 'USER', 'COLLECTOR'] },
     { id: 'reduction', label: 'တင်ပြီးသားအကွက် ပြန်နှုတ်ရန်', icon: 'fa-minus-circle', roles: ['ADMIN', 'USER', 'COLLECTOR'] },
     { id: 'calculator', label: '3 Calculator', icon: 'fa-calculator', roles: ['ADMIN', 'USER', 'COLLECTOR'] },
-    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-sliders', roles: ['ADMIN'] }, 
-    { id: 'excessmanage', label: '3 ကျွံပြင်ဆင်ရန်', icon: 'fa-fire', roles: ['ADMIN'] }, 
-    { id: 'users', label: 'အကောင့်များစီမံရန်', icon: 'fa-users', roles: ['ADMIN'] },
+    { id: 'users', label: 'Users', icon: 'fa-users', roles: ['ADMIN'] },
+    { id: 'adjustments', label: '3OVA ပြင်ဆင်ရန်', icon: 'fa-sliders', roles: ['ADMIN'] },
+    { id: 'excessmanage', label: '3 ကျွံပြင်ဆင်ရန်', icon: 'fa-fire', roles: ['ADMIN'] },
     { id: 'history', label: 'My History', icon: 'fa-history', roles: ['USER', 'COLLECTOR'] },
     { id: 'risk', label: '3 ချပ်ကြည့်ရန်', icon: 'fa-chart-line', roles: ['ADMIN'] },
     { id: 'excess', label: '3 ကျွံများကြည့်ရန်', icon: 'fa-fire-alt', roles: ['ADMIN'] },
@@ -755,12 +761,12 @@ const App: React.FC = () => {
           )}
           {activeTab === 'reduction' && (
             activePhase
-              ? <BulkEntry 
-                  onNewBets={handleBulkReduction} 
-                  readOnly={isReadOnly} 
-                  variant="reduction" 
-                  currentTotals={currentTotals}
-                />
+              ? <BulkEntry
+                onNewBets={handleBulkReduction}
+                readOnly={isReadOnly}
+                variant="reduction"
+                currentTotals={currentTotals}
+              />
               : <div className="text-center py-20 bg-white dark:bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
                 <h3 className="text-xl font-black text-slate-400">Please select an active phase</h3>
               </div>
@@ -828,10 +834,10 @@ const App: React.FC = () => {
             />
           )}
           {activeTab === 'users' && currentUser.role === 'ADMIN' && (
-            <UserManagement />
+            <UserManagement activePhaseBets={allBets} />
           )}
-          {activeTab === 'history' && currentUser.role === 'USER' && (
-            <UserHistory bets={allBets.filter(b => b.userId === currentUser.id && (!activePhase || b.phaseId === activePhase.id))} />
+          {activeTab === 'history' && (currentUser.role === 'USER' || currentUser.role === 'COLLECTOR') && (
+            <UserHistory bets={allBets.filter(b => b.userId === currentUser.id)} />
           )}
         </div>
       </main>

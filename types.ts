@@ -27,7 +27,7 @@ export interface Bet {
   amount: number;
   timestamp: string;
   phaseName?: string;
-  betSlipId?: string;
+  betSlipId?: number;
 }
 
 export interface LedgerEntry {

@@ -4,7 +4,11 @@ import { User, Bet } from '../types';
 import api from '../services/api';
 import UserHistory from './UserHistory';
 
-const UserManagement: React.FC = () => {
+interface UserManagementProps {
+  activePhaseBets?: Bet[];
+}
+
+const UserManagement: React.FC<UserManagementProps> = ({ activePhaseBets }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -58,9 +62,12 @@ const UserManagement: React.FC = () => {
     setHistoryBets([]);
     setIsHistoryModalOpen(true);
     
-    const result = await api.getUserHistory(user.id);
-    if (result.data?.bets) {
-      setHistoryBets(result.data.bets);
+    if (activePhaseBets) {
+      const userBets = activePhaseBets.filter(b => b.userId === user.id);
+      setHistoryBets(userBets);
+    } else {
+      // If no active phase bets provided (e.g. no active phase), clear or fetch nothing
+      setHistoryBets([]);
     }
   };
 
