@@ -219,7 +219,7 @@ const ExcessDashboard: React.FC<ExcessDashboardProps> = ({
         <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
           <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
             <i className="fa-solid fa-fire text-rose-500"></i>
-            <span>3 ကျွံ Overview</span>
+            <span></span>
           </h3>
 
           <div className="relative w-full md:w-80">
