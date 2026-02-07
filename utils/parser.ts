@@ -35,7 +35,7 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
 
   // 1. COMPOUND PATTERN: [Number]R[RemAmount]-[DirAmount] 
   // Example: 123R1000-10000
-  const compoundRegex1 = /(\d{3})[Rr](\d+)[-=@*](\d+)/g;
+  const compoundRegex1 = /(\d{3})[Rr](\d+)[-=@*\.\/](\d+)/g;
   let match;
   while ((match = compoundRegex1.exec(workingInput)) !== null) {
     const num = match[1];
@@ -58,7 +58,7 @@ export const parseBulkInput = (input: string): { number: string; amount: number;
 
   // 2. COMPOUND PATTERN: [Number]-[DirAmount]R[RemAmount]
   // Example: 123-10000R1000
-  const compoundRegex2 = /(\d{3})[-=@*](\d+)[Rr](\d+)/g;
+  const compoundRegex2 = /(\d{3})[-=@*\.\/](\d+)[Rr](\d+)/g;
   while ((match = compoundRegex2.exec(workingInput)) !== null) {
     const num = match[1];
     const dAmount = parseInt(match[2], 10);

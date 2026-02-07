@@ -84,7 +84,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
     parsedBetsInfo.forEach(bet => {
       if (!groups[bet.original]) {
         // Detect if it's a compound notation (contains both 'R' and a separator like '-')
-        const isCompound = /[Rr]/.test(bet.original) && /[-=@*]/.test(bet.original);
+        const isCompound = /[Rr]/.test(bet.original) && /[-=@*\.\/]\d+/.test(bet.original);
         // Extract the base number from the original string
         const baseMatch = bet.original.match(/^(\d{3})/);
         const baseNum = baseMatch ? baseMatch[1] : bet.number;
@@ -368,7 +368,7 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
               value={text}
               onChange={(e) => setText(e.target.value)}
               disabled={readOnly || isProcessing || isClearing}
-              placeholder={isReduction ? "Subtract syntax:&#10;123 500&#10;123R 1000&#10;777@200" : "Examples:&#10;123R1000-10000 (35,000 Total)&#10;123 R 1000 (6,000 Total)&#10;123@500&#10;123.200&#10;123 1000"}
+              placeholder={isReduction ? "Subtract syntax:&#10;123 500&#10;123R 1000&#10;777@200" : "Examples:&#10;123.10000R5000 (35,000 Total)&#10;123/10000R5000&#10;123R1000-10000&#10;123 R 1000&#10;123@500&#10;123.200"}
               className={`w-full h-80 md:h-96 bg-transparent p-6 md:p-8 text-2xl md:text-3xl font-mono focus:outline-none placeholder:text-slate-300 dark:placeholder:text-slate-800 text-slate-900 dark:text-white custom-scrollbar resize-none leading-tight ${isReduction ? 'text-rose-600 dark:text-rose-400' : ''}`}
             />
 
@@ -512,8 +512,8 @@ const BulkEntry: React.FC<BulkEntryProps> = ({ onNewBets, readOnly = false, vari
               <span>= 123 ကို 2000, ကျန် 1000 စီ</span>
             </div>
             <div className="flex items-start gap-2">
-              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123R1000-2000</span>
-              <span>= 123 ကို 2000, ကျန် 1000 စီ</span>
+              <span className="font-mono text-amber-600 font-bold min-w-[120px]">123.5000R1000</span>
+              <span>= 123 ကို 5000, ကျန် 1000 စီ</span>
             </div>
             <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
               <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Accepted separators: - = @ * . , /</p>
